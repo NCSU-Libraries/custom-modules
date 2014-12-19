@@ -1,3 +1,0 @@
-License
-
-See MIT-LICENSE
