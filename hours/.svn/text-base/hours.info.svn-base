@@ -1,0 +1,5 @@
+name = Library Hours
+description = Facilitate Library Hours.
+core = 7.x
+version = 7.x-0.1
+package = NCSU Libraries Custom

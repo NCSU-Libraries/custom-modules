@@ -1,0 +1,580 @@
+<?php
+/**
+ * Implements hook_services_request_postprocess_alter()
+ *
+ */
+function services_modify_services_request_postprocess_alter($controller, $args, &$result){
+
+  // Is this a "services_1" display?  (look in Views)
+  if ($args) {
+    $services_1_id = $args[0]['display_id'] == 'services_1' ? TRUE : FALSE;
+    // The View's machine name
+    $view_name = $args[0]['view_name'];
+  }
+
+  if ($services_1_id){
+    switch ($view_name) {
+      // Partners view
+      case 'web_services':
+        // Altering the output of the partners service
+        foreach ($result as $key => $value) {
+          if ($value->image){
+            $uri = $value->image['uri'];
+            $wrapper = file_stream_wrapper_get_instance_by_uri($uri);
+            $path = $wrapper->getExternalUrl();
+            $value->image['real_uri'] = $path;
+          }
+        }
+        break;
+
+      // Altering Spaces' web service output
+      case 'web_services_spaces':
+        // Altering the output of the rest_node service
+        $res_url_base = '//www.lib.ncsu.edu/roomreservations/schedule.php?date=';
+        $today = date('m-d-Y');  // needed for reservation system links
+
+        foreach ($result as $key => $value) {
+          // Adding full path to space
+          $value->path = '//www.lib.ncsu.edu/'. drupal_get_path_alias('node/'. $value->nid);
+          // Repeating myself @todo
+          // Image URL finding, and decluttering
+          if ($value->image){
+            $uri = $value->image['uri'];
+            $wrapper = file_stream_wrapper_get_instance_by_uri($uri);
+            $path = $wrapper->getExternalUrl();
+            $value->image_url = $path;
+            $value->image_alt = $value->image['alt'];
+            $value->image_title = $value->image['title'];
+          }
+          // Removing the other junk
+          unset($value->image);
+
+          // Add reservation link
+          if ($value->res_id) {
+            $value->res_link = $res_url_base . $today .'&scheduleid='. $value->res_id;
+          }
+          unset($value->res_id);
+          if ($value->reservation_method == 'By Mediated Email Form'){
+            $value->res_link = '//www.lib.ncsu.edu/huntlibrary/roomrequest';
+          }
+          unset($value->reservation_method);
+        }
+        break;
+    }
+  }
+
+  // Altering Reports' web service output
+  // See /rest-nodes/reports
+  if ($view_name == "web_services_spaces" && $args[0]['display_id'] == 'services_2') {
+    foreach ($result as $key => $report) {
+      $report->project_link = substr($report->project_link, 5);
+      $report->report_link = '//www.lib.ncsu.edu/'. drupal_get_path_alias('node/'. $report->report_link);
+      log_to_file($report->project_link);
+    }
+  }
+
+  // Altering output of event service
+  if ($view_name == 'web_services_calendar') {
+    foreach ($result as $key => $value) {
+
+      // Repeating myself @todo
+      // Image URL finding, and decluttering
+      if ($value->image_event){
+        $uri = $value->image_event['uri'];
+        $wrapper = file_stream_wrapper_get_instance_by_uri($uri);
+        $path = $wrapper->getExternalUrl();
+        $value->event_image['url'] = $path;
+        $value->event_image['alt'] = $value->image_event['alt'];
+        $value->event_image['title'] = $value->image_event['title'];
+      }
+      unset($value->image_event);
+
+      // Repeating myself @todo
+      // Image URL finding, and decluttering
+      if ($value->image_space){
+        $uri = $value->image_space['uri'];
+        $wrapper = file_stream_wrapper_get_instance_by_uri($uri);
+        $path = $wrapper->getExternalUrl();
+        $value->space_image['url'] = $path;
+        $value->space_image['alt'] = $value->image_space['alt'];
+        $value->space_image['title'] = $value->image_space['title'];
+      }
+      unset($value->image_space);
+
+      // Start and end time formatting
+      if ($value->when){
+        $value->time['start'] = date('U', strtotime($value->when[0]['value']));
+        $value->time['end'] = date('U', strtotime($value->when[0]['value2']));
+      }
+      unset($value->when);
+
+    }
+  }
+
+
+
+  // *********
+  // ALTER HOURS OUTPUT NEW!!!
+  // *********
+
+    if($args[0]['display_id'] == 'master_feed'){
+        foreach ($result as $key => $value) {
+            $value->exception = $value->exception['value'];
+
+            $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+            $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+            $open = date('g:ia',$raw_open_tz);
+            $close = date('g:ia',$raw_close_tz);
+
+            // build hours display string
+            if($value->twenty_four_hours == 1){
+                $value->display = '24 Hours';
+            } else if($value->closed == 1){
+                $value->display = 'Closed';
+            } else if($value->appointment_only == 1){
+                $value->display = 'By appointment only';
+            } else if($value->midnight == 1){
+                $value->display = $open.' - midnight';
+                $close_str = 'midnight';
+            } else if($open == '12:00am'){
+                $value->display = 'Open to '.$close;
+                $close_str = $close;
+            } else{
+                $open_str = ($open == '12:00am') ? 'midnight' : $open;
+                $open_str = ($open == '12:00pm') ? 'noon' : $open ;
+                $close_str = ($close == '12:00am') ? 'midnight' : $close;
+                $close_str = ($close == '12:00pm') ? 'noon' : $close;
+                if($value->midnight == 0 && $close == '12:00am'){
+                    $open_str = 'Opens at '.$open;
+                    $close_str = '';
+                    $overnight = 1;
+                }
+                $value->display = $open_str.' - '.$close_str;
+
+            }
+
+
+            // is it open right now?
+            $time_open_today = date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y')));
+            $time_open_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y'))));
+            $day_close = (date('g', $raw_close_tz) < 4 || (date('g', $raw_close_tz) == 12 && $value->midnight == 1)) ? date('j')+1 : date('j'); //if close is 4am or less
+            $time_close_today = date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y')));
+            $time_close_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y'))));
+            $value->time_range = $time_open_today . ' - ' . $time_close_today;
+
+            if($value->closed == 1){
+                $value->is_open = 0;
+            } else if($value->twenty_four_hours == 1){
+                $value->is_open = 1;
+            } else if($value->midnight == 0 && $close == '12:00am'){ //overnight
+                $value->is_open = 1;
+            } else if($time_open_today_U < date('U') && $time_close_today_U > date('U')){
+                $value->is_open = 1;
+            } else{
+                $value->is_open = 0;
+            }
+
+            if($value->is_open == 1){
+                $value->open_display = 'open';
+            } else{
+                $value->open_display = 'closed';
+            }
+
+            // real time display
+            if($value->twenty_four_hours == 1){
+                $value->real_time_display = '24 Hours';
+            } else if($value->is_open == 1){
+                $value->real_time_display = 'Closes at '.$close_str;
+            } else if($value->appointment_only == 1){
+                $value->real_time_display = 'By Appointment Only';
+            } else if($value->open_display == 'closed'){
+                $value->real_time_display = 'Opens at '.$open_str;
+            }
+
+
+            // cleanup
+            unset($value->hours);
+            unset($value->library_short_name);
+            unset($value->service_short_name);
+            unset($value->library);
+            unset($value->service);
+            unset($value->library_name);
+            unset($value->service_name);
+        }
+    }
+
+
+
+
+
+
+
+
+  // *********
+  // ALTER HOURS OUTPUT
+  // *********
+  //
+  // Real time hours numbers (listing of all library services)
+  if($view_name == 'library_hours_2' && $args[0]['display_id'] == 'services_7'){
+
+    // loop through and remove for exceptions
+    foreach ($result as $key => $value) {
+      $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value2']);
+      $old_date = date('z', $raw_open_tz);
+
+      $old_place = $value->library_short_name.$value->service_short_name;
+      if($old_place == $new_place){
+        unset($result[$key]);
+      }
+      $new_place = $value->library_short_name.$value->service_short_name;
+
+    }
+
+
+    foreach ($result as $key => $value) {
+      $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value2']);
+
+      $value->open_display = date('g:ia',$raw_open_tz);
+      $value->close_display = date('g:ia',$raw_close_tz);
+      $value->exception = $value->exception['value'];
+      $value->display = hours_get_realtime_display_string($raw_open_tz, $raw_close_tz, $value->twenty_four_hours, $value->closed, $value->appointment_only, $value->midnight);
+
+      // cleanup
+      unset($value->hours);
+    }
+
+  }
+
+
+
+
+
+
+
+
+  // Real time hours numbers
+  if($view_name == 'library_hours' && $args[0]['display_id'] == 'services_1'){
+    foreach ($result as $key => $value) {
+      $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value2']);
+
+      $value->open_display = date('g:ia',$raw_open_tz);
+      $value->close_display = date('g:ia',$raw_close_tz);
+
+      // cleanup
+      unset($value->hours);
+    }
+  }
+
+  // Calendar module hours
+  if($view_name == 'library_hours_2' && $args[0]['display_id'] == 'services_1'){
+    foreach ($result as $key => $value) {
+      $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value2']);
+
+      $value->open_display = date('g:ia',$raw_open_tz);
+      $value->close_display = date('g:ia',$raw_close_tz);
+
+      // cleanup
+      unset($value->hours);
+    }
+  }
+
+
+  // live website and eboards feed
+  if($view_name == 'library_hours_2' && ($args[0]['display_id'] == 'services_2' || $args[0]['display_id'] == 'services_3' || $args[0]['display_id'] == 'services_4')){
+    $single_day_ary = array();
+    $multi_day_ary = array();
+    if($view_name == 'library_hours_2' && $args[0]['display_id'] == 'services_4'){
+      array_pop($result);
+    }
+
+    foreach ($result as $key => $value) {
+      // change keys
+      $value->title = $value->node_title;
+      $value->hours[0]['open'] = $value->hours[0]['value'];
+      $value->hours[0]['close'] = $value->hours[0]['value2'];
+
+      $raw_open_tz = strtotime($value->hours[0]['open']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['open']);
+      $raw_close_tz = strtotime($value->hours[0]['close']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['close']);
+
+      // get library info
+      $library_title = node_load($value->library);
+      $value->library_title = $library_title->title;
+      $library_name = field_get_items('node', $library_title, 'field_library_short_name');
+      $value->library_name = $library_name[0]['value'];
+      $value->library_id = $library_title->nid;
+
+      // get service info
+      $service_title = node_load($value->service);
+      $value->service_title = $service_title->title;
+      $service_name = field_get_items('node', $service_title, 'field_short_name');
+      $value->service_name = $service_name[0]['value'];
+      $value->service_id = $service_title->nid;
+
+      // adjust for timezone
+      $value->open = date('Y-m-d H:i', $raw_open_tz);
+      // if day is 24 hours make closing time exactly 24 hours after opening
+      $value->close = ($value->twenty_four_hours == 1) ? date('Y-m-d G:i',strtotime($value->open)+86400) : date('Y-m-d H:i', $raw_close_tz);
+
+      // if it's open to midnight see if its 24 hours or closes at midnight
+      $next_day_open_raw = strtotime($result[$key+1]->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($result[$key+1]->hours[0]['value']);
+      $next_day_open = date('H:i', $next_day_open_raw);
+      $next_day_status = $result[$key+1]->twenty_four_hours;
+      $value->exception = $value->exception['value'];
+
+
+      $open_str = date('g:ia',$raw_open_tz);
+      $close_str = date('g:ia',$raw_close_tz);
+      if($value->closed == 1){
+        $value->display = 'Closed';
+      } else if($value->twenty_four_hours == 1){
+        $value->display = '24 Hours';
+      } else if($value->appointment_only){
+        $value->display = 'By appointment only';
+      } else if($open_str == '12:00am'){
+        if($value->midnight == '1'){
+          $value->display = 'Closes at midnight';
+        } else{
+          $value->display = 'Closes at '.$close_str;
+        }
+      } else if($value->midnight == '1'){
+        $value->display = $open_str . ' - midnight';
+      } else if($close_str == '12:00am' && $next_day_open == '00:00'){
+        if($value->midnight == '1'){
+          $value->display = 'Closes at midnight';
+        } else{
+          $value->display = 'Opens att '.$open_str;
+        }
+      } else{
+        if($close_str == '12:00am'){$close_str = 'midnight';}
+        if($close_str == '12:00pm'){$close_str = 'Noon';}
+        if($open_str == '12:00am'){$open_str = 'midnight';}
+        if($open_str == '12:00pm'){$open_str = 'Noon';}
+        $value->display = $open_str . ' - ' . $close_str;
+      }
+
+
+
+
+
+
+      // add date object
+      // If two sets of data exist for same day remove data in favor of exception for said day
+      $new_date = $old_date;
+      $value->date = date('Y-m-d',$raw_open_tz);
+      $old_date = $value->date;
+
+      if($args[0]['display_id'] == 'services_4' || $args[0]['display_id'] == 'services_3'){
+        if($old_date == $new_date){
+          if($value->exception == 0){
+            unset($result[$key]);
+          } else{
+          $value->test = 'hit';
+            unset($result[$key-1]);
+
+            if($args[0]['display_id'] == 'services_3'){
+              // unset($result[0]);
+            }
+          }
+        }
+      }
+
+
+
+
+      // remove duplicates for single day hours
+      if($args[0]['display_id'] == 'services_3'){
+        // if date has exception take that over normal schedule
+        if($result[$key+1]->exception['value'] || $result[$key+1]->exam_hours == 1){
+          unset($result[$key]);
+        }
+      }
+
+       // some cleanup
+      unset($value->hours);
+      unset($value->node_title);
+      unset($value->library);
+      unset($value->service);
+      unset($value->twenty_four_hours);
+      unset($value->closed);
+      unset($value->title);
+      unset($value->appointment_only);
+    }
+
+    // reset keys
+    if($args[0]['display_id'] == 'services_4' || $args[0]['display_id'] == 'services_3'){
+     $result = array_values($result);
+    }
+  }
+
+  // hunt exceptions feed
+  if($view_name == 'library_hours_2' && ($args[0]['display_id'] == 'services_2')){
+    foreach ($result as $key => $value) {
+      //bring back closed exception
+      $value->closed = ($value->display == 'Closed') ? 1 : 0;
+
+      //  // some cleanup
+      unset($value->exception);
+      unset($value->exam_hours);
+      unset($value->library_name);
+      unset($value->library_id);
+      unset($value->service_name);
+      unset($value->service_id);
+      unset($value->service_title);
+    }
+  }
+
+
+
+
+
+
+
+  // library schedule feed
+  if($view_name == 'library_hours_2' && ($args[0]['display_id'] == 'services_6')){
+    foreach ($result as $key => $value) {
+
+      // get time data
+      $raw_open = strtotime($value->hours[0]['value'])+ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close = strtotime($value->hours[0]['value2'])+ncsulib_foundation_adjust_for_timezone($value->hours[0]['value2']);
+      $open_hr = date('g:ia', $raw_open);
+      $close_hr = date('g:ia', $raw_close);
+
+      // display string for time
+      if($value->closed['value'] == '1'){
+        $value->display_time = 'Closed';
+      } else if($value->twenty_four_hours == '1'){
+        $value->display_time = '24 Hours';
+      } else if($value->appointment_only == '1'){
+        $value->display_time = 'By appointment only';
+      } else if($open_hr == '12:00am'){
+        if($value->midnight == '1'){
+          $value->display_time = 'Closes at midnight';
+        } else{
+          $value->display_time = 'Closes at '.$close_hr;
+        }
+      } else if($value->midnight == '1'){
+        $value->display_time = $open_hr . ' - midnight';
+      } else if($close_hr == '12:00am'){
+        $value->display_time = 'Opens at ' . $open_hr;
+      }else{
+        if($close_hr == '12:00am'){$close_hr = 'midnight';}
+        if($close_hr == '12:00pm'){$close_hr = 'Noon';}
+        if($open_hr == '12:00am'){$open_hr = 'midnight';}
+        if($open_hr == '12:00pm'){$open_hr = 'Noon';}
+         $value->display_time = $open_hr . ' - ' . $close_hr;
+      }
+
+      // change keys
+      $value->open = $raw_open;
+      $value->close = $raw_close;
+
+      // set date display
+      if($value->exception == 'Yes' || $value->exam_hours == 1){
+        // get close date by hacking the rule
+        if($value->hours[0]['rrule']){
+          preg_match('/UNTIL=(.*?);/si', $value->hours[0]['rrule'], $raw_rule);
+          $raw_close = strtotime($raw_rule[1]);
+        } else{
+          $raw_close = $raw_open;
+        }
+        $open_day = date('M j',$raw_open);
+        $raw_close = (date('G',$raw_close) > 0 && date('G',$raw_close) < 5) ? $raw_close-86400 : $raw_close;
+        $close_day = date('M j',$raw_close);
+
+        if($open_day == $close_day){
+          $value->display_rule = $open_day;
+        } else {
+          if(date('m', $raw_open) < date('m', $raw_close)){
+            $value->display_rule = $open_day . '-' . date('M j',$raw_close);
+          } else{
+            $value->display_rule = $open_day . '-' . date('j',$raw_close);
+          }
+        }
+
+      } else{
+        // rule
+        // determine day of week
+        $raw_rule = preg_split('/BYDAY=/', $value->hours[0]['rrule']);
+        $raw_rule = preg_split('/;/', $raw_rule[1]);
+        $new_rule = preg_split('/,/', $raw_rule[0]);
+        if($new_rule[0] == 'SU' && count($new_rule) > 5 && $new_rule[count($new_rule)-1]=='SA'){
+          $rule_days = 'MO-SU';
+        } else{
+          $rule_days = ($new_rule[0] != $new_rule[count($new_rule)-1]) ? $new_rule[0] . '-' . $new_rule[count($new_rule)-1] : $new_rule[0];
+        }
+        $value->display_rule = hours_return_week_days($rule_days);
+      }
+
+      unset($value->hours[0]['db']);
+    }
+  }
+
+
+
+  /**
+  * Rewrite Homepage Utility Hours
+  */
+  if($view_name == 'library_hours_2' && $args[0]['display_id'] == 'services_8'){
+    foreach ($result as $key => $value) {
+      //detect exceptions
+      $value->exception = $value->exception['value'];
+
+      // rename library title
+      if($value->library == '22493'){
+        $value->library_name = 'hill';
+        unset($value->node_title);
+      } else if($value->library == '22494'){
+        $value->library_name = 'hunt';
+        unset($value->node_title);
+      }
+
+      // get hours
+      $tz_adjust = ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_open_date = strtotime($value->hours[0]['value'])+$tz_adjust;
+      $raw_close_date = strtotime($value->hours[0]['value2'])+$tz_adjust;
+      $value->date = date('Y-m-d',$raw_open_date);
+
+      $open_hours = date('g:ia',$raw_open_date);
+      $close_hours = date('g:ia',$raw_close_date);
+      $value->time = hours_get_display_string($raw_open_date, $raw_close_date, $value->twenty_four_hours, $value->closed, $value->appointment_only, $value->midnight);
+
+      unset($value->hours);
+    }
+
+    foreach ($result as $key => $value) {
+      //strip out multiple entries in favor of exceptions
+      $old_date = $value->date;
+      $old_lib = $value->library;
+      if($old_date == $new_date && $new_lib == $old_lib && $value->exception != 1){
+        unset($result[$key]);
+      }
+      $new_date = $old_date;
+      $new_lib = $old_lib;
+    }
+
+    //reset array keys
+    $result = array_values($result);
+  }
+}
+
+
+
+
+
+/**
+ * ADX response formatter
+ *
+ * Not in use as of 8/2/2013
+ */
+function services_modify_rest_server_response_formatters_alter(&$formatters) {
+  $formatters['adx'] = array(
+    'mime types' => array('application/xml', 'text/xml'),
+    'view' => 'RESTServerViewExtra',
+    'view arguments' => array('format' => 'adx'),
+  );
+
+}
