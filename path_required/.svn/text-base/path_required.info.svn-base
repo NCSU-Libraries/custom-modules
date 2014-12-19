@@ -1,0 +1,8 @@
+name = Path Required
+description = Require URL aliases for every Page content type.
+core = 7.x
+version = 7.x-1.0
+package = NCSU Libraries Custom
+dependencies[] = path
+files[] = path_required.install
+stylesheets[all][] = css/path_required.css

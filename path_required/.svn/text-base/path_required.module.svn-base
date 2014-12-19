@@ -1,0 +1,47 @@
+<?php
+function path_required_form_page_node_form_alter(&$form, &$form_state, $form_id) {
+  //If this is a node form
+  if (strpos($form_id, 'node_form')) {
+    //Modify the URL path settings vertical tab
+    $form['path']['alias']['#required'] = TRUE;
+    //Gather the base url of the Drupal installation. Compensate for https
+    $base = $GLOBALS['base_url'];
+    $base = str_replace('https:', 'http:', $base);
+    $form['path']['alias']['#field_prefix'] = $base . '/' . (variable_get('clean_url', 0) ? '' : '?q=');
+    //Disable the Pathauto module's auto generated URL option
+    //$form['path']['pathauto']['#access'] = FALSE;
+
+    //Determine if the node form is in "add" or "edit" mode
+    $path_holder = drupal_get_path_alias();
+    $path_holder_array = explode('/', $path_holder);
+
+    //If the node form is in "add" mode
+    if ($path_holder_array[1]=='add') {
+      $form['path']['alias']['#description'] = t('Specify a URL by which this content can be accessed.<br /><ul><li>Do not add leading or trailing slashes or the URL will not work.</li><li>You will not be able to edit this URL once it has been created.</li><li>Contact <a href="mailto:libwebteam@ncsu.edu">libwebteam@ncsu.edu</a> for assistance.</li></ul>');
+      $form['revision_information']['#weight'] = 99;
+    }
+
+    //If the node form is in "edit" mode
+    if ($path_holder_array[2]=='edit') {
+      //Determine if the user has the role of "website admin"
+      //This will need to be rewritten to queue off a permission flag which can be assigned to roles.
+      global $user;
+      $website_admin = 0;
+      foreach ($user->roles as $role) {
+        if ($role=="website admin") {
+          $website_admin = 1;
+        }
+      }
+      //If the user does not have the role of "website admin"
+      if ($website_admin==0) {
+        //Disable URL alias editing
+        $form['path']['alias']['#disabled'] = TRUE;
+        $form['path']['alias']['#description'] = t('For SEO reasons, URLs that need to be changed should have redirects created. Please contact <a href="mailto:libwebteam@ncsu.edu">libwebteam@ncsu.edu</a> for assistance.');
+      //If the user does have the role of "website admin"
+      }
+      elseif ($website_admin==1) {
+        $form['path']['alias']['#description'] = t('Specify a URL by which this content can be accessed.<br /><ul><li>Do not add leading or trailing slashes or the URL will not work.</li><li>A 301 redirect will automatically be created for the previous URL.</li></ul>');
+      }
+    }
+  }
+}

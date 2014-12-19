@@ -1,0 +1,4 @@
+name = Node Viewing Permissions
+description = Sets view permissions for the Partners' content type.
+core = 7.x
+package = NCSU Libraries Custom

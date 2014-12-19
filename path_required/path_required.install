@@ -1,0 +1,22 @@
+<?php
+
+/**
+ * @file
+ * (Un)Installation routines for path_required
+ */
+
+/**
+ * Implements hook_install().
+ */
+
+function path_required_install() {
+  $weight = db_select('system', 's')
+              ->fields('s', array('weight'))
+              ->condition('name', 'pathauto', '=')
+              ->execute()
+              ->fetchField();
+  db_update('system')
+    ->fields(array('weight' => $weight +1))
+    ->condition('name', 'path_required', '=')
+    ->execute();
+}

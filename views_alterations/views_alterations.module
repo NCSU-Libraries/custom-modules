@@ -1,0 +1,62 @@
+<?php
+/**
+ * @file This is the place to store any miscellaneous view alterations.  It is
+ * also the place to store some global functions (for now).
+ */
+
+/**
+ * Handy function for outputting variables
+ */
+function log_to_file($text) {
+  $f = fopen('/tmp/drupal.log', 'a');
+  fwrite($f, date('Ymd H:i:s - ') . print_r($text, true) . "\n");
+  fclose($f);
+}
+
+/**
+ * Implements hook_date_ical_feed_ical_vevent_render_alter()
+ *
+ * Adding necessary iCal metadata for campus ingestion of our events
+ * See http://kigkonsult.se/iCalcreator/docs/using.html for details on how to
+ * manipulate iCal data
+ */
+function views_alterations_date_ical_feed_ical_vevent_render_alter($vevent, $view, $event_array) {
+  $vevent->setProperty('categories', 'NCSU Libraries');
+  $vevent->setProperty('class', 'PUBLIC');
+  $vevent->setProperty('organizer', 'marian_fragola@ncsu.edu',
+    array(
+      'CN' => 'Marian Fragola',
+      'SENT-BY' => 'marian_fragola@ncsu.edu'
+      ));
+  $vevent->deleteProperty('LAST-MODIFIED');
+}
+
+/**
+ * Impelements of hook_views_query_alter().
+ *
+ * Inspired by a solution take from
+ * http://grayside.org/2011/08/infinite-null-sorting-null-last
+ * that was meant for D6 but does the same thing.  Solves the problem of MySQL
+ * sorting NULL values to the top.
+ */
+function views_alterations_views_query_alter(&$view, &$query) {
+  // Just for the devices that display within a tech category
+  if ($view->name == 'devices_device' && $view->current_display == 'block_9') {
+    $isnull_array_criteria = array(
+      'field' => 'ISNULL(field_data_field_sort_field_sort_value)',
+      'direction' => 'ASC'
+      );
+   array_unshift($query->orderby, $isnull_array_criteria);
+  }
+}
+
+
+/**
+* Implements hook_entity_info_alter().
+*/
+function views_alterations_entity_info_alter(&$entity_info) {
+  $entity_info['node']['view modes']['alternate'] = array(
+    'label' => t('Alternate'),
+    'custom settings' => TRUE,
+  );
+}

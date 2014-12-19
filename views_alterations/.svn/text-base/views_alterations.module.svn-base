@@ -1,0 +1,32 @@
+<?php
+/**
+ * @file This is the place to store any miscellaneous view alterations.  It is
+ * also the place to store some global functions (for now).
+ */
+
+/**
+ * Handy function for outputting variables
+ */
+function log_to_file($text) {
+  $f = fopen('/tmp/drupal.log', 'a');
+  fwrite($f, date('Ymd H:i:s - ') . print_r($text, true) . "\n");
+  fclose($f);
+}
+
+/**
+ * Implements hook_date_ical_feed_ical_vevent_render_alter()
+ *
+ * Adding necessary iCal metadata for campus ingestion of our events
+ * See http://kigkonsult.se/iCalcreator/docs/using.html for details on how to
+ * manipulate iCal data
+ */
+function views_alterations_date_ical_feed_ical_vevent_render_alter($vevent, $view, $event_array) {
+  $vevent->setProperty('categories', 'NCSU Libraries');
+  $vevent->setProperty('class', 'PUBLIC');
+  $vevent->setProperty('organizer', 'marian_fragola@ncsu.edu',
+    array(
+      'CN' => 'Marian Fragola',
+      'SENT-BY' => 'marian_fragola@ncsu.edu'
+      ));
+  $vevent->deleteProperty('LAST-MODIFIED');
+}

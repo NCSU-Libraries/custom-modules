@@ -1,0 +1,13 @@
+<?php
+function publishing_options_override_form_page_node_form_alter(&$form, &$form_state, $form_id) {
+  //If this is a node form
+  if (strpos($form_id, 'node_form')) {
+    //Modify the URL path settings vertical tab
+    $form['path']['alias']['#required'] = TRUE;
+    $form['path']['alias']['#field_prefix'] = $GLOBALS['base_url'] . '/' . (variable_get('clean_url', 0) ? '' : '?q=');
+
+    //Determine if the node form is in "add" or "edit" mode
+    $path_holder = drupal_get_path_alias();
+    $path_holder_array = explode('/', $path_holder);
+  }
+}

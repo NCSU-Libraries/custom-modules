@@ -1,0 +1,18 @@
+<?php
+/**
+ * Implement hook_node_access()
+ *
+ * Allow only logged in users who have access to edit Partners
+ * content the ability to view the content
+ *
+ * Author: Charlie Morris
+ * 3/18/13
+ */
+
+function node_view_perm_node_access($node, $op, $account) {
+  if ($op == 'view' && $node->type == 'partners' && !user_access('edit any partners content')){
+    return NODE_ACCESS_DENY;
+  } else {
+    return NODE_ACCESS_IGNORE;
+  }
+}

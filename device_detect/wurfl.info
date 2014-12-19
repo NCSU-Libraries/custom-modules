@@ -1,0 +1,5 @@
+name = WURFL Device Detection
+description = Server side detection of User Agents
+core = 7.x
+version = 7.x-0.1
+package = NCSU Libraries Custom

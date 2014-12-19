@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the content_filter feature.
+ */
+
+include_once 'content_filter.features.inc';

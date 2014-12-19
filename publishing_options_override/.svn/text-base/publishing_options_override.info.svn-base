@@ -1,0 +1,5 @@
+name = Publishing Options Override
+description = Override publishing options for every Page content type.
+core = 7.x
+version = 7.x-1.0
+package = NCSU Libraries Custom

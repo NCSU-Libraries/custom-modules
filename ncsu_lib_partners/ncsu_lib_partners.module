@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the NCSU Lib Partners feature.
+ */
+
+include_once 'ncsu_lib_partners.features.inc';

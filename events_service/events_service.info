@@ -1,0 +1,15 @@
+name = Events Service
+description = Feature module for event RESTful service: endpoint and view.
+core = 7.x
+package = NCSU Libraries Custom
+php = 5.2.4
+version = 7.x-1.0
+project = events_service
+dependencies[] = ctools
+dependencies[] = services
+dependencies[] = views
+features[ctools][] = services:services:3
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:1
+features[services_endpoint][] = rest_nodes
+features[views_view][] = web_services_calendar

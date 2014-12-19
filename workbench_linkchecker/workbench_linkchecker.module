@@ -1,0 +1,34 @@
+<?php
+/**
+ * Author:  Charlie Morris
+ * Date:    9/5/13
+ */
+
+/**
+ * Implements hook_menu_alter()
+ *
+ * This function merely calls the user broken link report and attaches it to
+ * workbench.
+ */
+function workbench_linkchecker_menu_alter(&$items) {
+    $items['admin/workbench/brokenlinks/%user_uid_optional'] = array(
+      'access callback' => '_accesscheck',
+      'access arguments' => array(3),
+      'description' => 'Shows a list of broken links in content.',
+      'file' => 'linkchecker.pages.inc',
+      'file path' => drupal_get_path('module', 'linkchecker'),
+      'page callback' => 'linkchecker_user_report_page',
+      'page arguments' => array(3),
+      'title' => 'My broken links',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 15,
+    );
+  }
+
+/**
+ * Simple access check callback
+ */
+function _accesscheck() {
+  // user_access will check against the currently logged in user by default
+  return user_access('access own broken links report');
+}

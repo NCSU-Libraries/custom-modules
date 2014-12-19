@@ -1,0 +1,37 @@
+<?php
+
+/**
+ * Implements hook_boot().
+ *
+ * The only way to run functions before the cache is with this hook, and this
+ * is necessary for mobile detection.
+ */
+function mdetect_boot() {
+  // Had to copy drupal_is_front_page() into this hook as it was not available
+  // this early in the Drupal bootstrap process.
+  function drupal_is_front_page_copy() {
+    // Use the advanced drupal_static() pattern, since this is called very
+    // often.
+    static $drupal_static_fast;
+    if (!isset($drupal_static_fast)) {
+      $drupal_static_fast['is_front_page'] = &drupal_static(__FUNCTION__);
+    }
+    $is_front_page = &$drupal_static_fast['is_front_page'];
+
+    if (!isset($is_front_page)) {
+      // As drupal_path_initialize updates $_GET['q'] with the
+      // 'site_frontpage' path, we can check it against the 'site_frontpage'
+      // variable.
+      $is_front_page = ($_GET['q'] == variable_get('site_frontpage', 'node'));
+    }
+
+    return $is_front_page;
+  }
+
+  // If this is the front/home page of the site
+  if (drupal_is_front_page_copy()) {
+    // Mobile detection is step 1.
+    require_once(variable_get('htdocs_root')."/includes/mdetect.php");
+  }
+}
+

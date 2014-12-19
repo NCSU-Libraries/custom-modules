@@ -1,0 +1,74 @@
+<?php
+/**
+* WURFL Module
+* Erik Olson - 2/10/14
+*/
+
+
+/**
+ * get device data
+ */
+function device_is($type){
+
+	include_once 'wurfl_config_standard.php';
+	$wurflInfo = $wurflManager->getWURFLInfo();
+
+	if (isset($_GET['ua']) && trim($_GET['ua'])) {
+		$ua = $_GET['ua'];
+		$requestingDevice = $wurflManager->getDeviceForUserAgent($_GET['ua']);
+	} else {
+		$ua = $_SERVER['HTTP_USER_AGENT'];
+		// This line detects the visiting device by looking at its HTTP Request ($_SERVER)
+		$requestingDevice = $wurflManager->getDeviceForHttpRequest($_SERVER);
+	}
+
+	$is_wireless = ($requestingDevice->getCapability('is_wireless_device') == 'true');
+	$is_smarttv = ($requestingDevice->getCapability('is_smarttv') == 'true');
+	$is_tablet = ($requestingDevice->getCapability('is_tablet') == 'true');
+	$is_desktop = ($requestingDevice->getCapability('ux_full_desktop') == 'true');
+	$is_phone = ($requestingDevice->getCapability('can_assign_phone_number') == 'true');
+
+	if($type == 'tablet'){
+		return $is_tablet;
+	} else if($type == 'phone'){
+		return $is_phone;
+	} else if($type == 'desktop'){
+		return $is_desktop;
+	} else{
+		return false;
+	}
+
+}
+
+
+function device_detect_width(){
+	include_once 'wurfl_config_standard.php';
+
+	$wurflInfo = $wurflManager->getWURFLInfo();
+	if (isset($_GET['ua']) && trim($_GET['ua'])) {
+		$ua = $_GET['ua'];
+		$requestingDevice = $wurflManager->getDeviceForUserAgent($_GET['ua']);
+	} else {
+		$ua = $_SERVER['HTTP_USER_AGENT'];
+		// This line detects the visiting device by looking at its HTTP Request ($_SERVER)
+		$requestingDevice = $wurflManager->getDeviceForHttpRequest($_SERVER);
+	}
+
+	return $requestingDevice->getCapability('resolution_width');
+}
+
+function device_detect_height(){
+	include_once 'wurfl_config_standard.php';
+
+	$wurflInfo = $wurflManager->getWURFLInfo();
+	if (isset($_GET['ua']) && trim($_GET['ua'])) {
+		$ua = $_GET['ua'];
+		$requestingDevice = $wurflManager->getDeviceForUserAgent($_GET['ua']);
+	} else {
+		$ua = $_SERVER['HTTP_USER_AGENT'];
+		// This line detects the visiting device by looking at its HTTP Request ($_SERVER)
+		$requestingDevice = $wurflManager->getDeviceForHttpRequest($_SERVER);
+	}
+
+	return $requestingDevice->getCapability('resolution_height');
+}

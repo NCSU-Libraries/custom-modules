@@ -1,0 +1,5 @@
+name = Mobile Detection
+description = A script that runs before the cache process to handle mobile redirection
+core = 7.x
+version = 7.x-1.1
+package = NCSU Libraries Custom
