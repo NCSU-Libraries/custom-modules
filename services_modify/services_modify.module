@@ -3,6 +3,7 @@
  * Implements hook_services_request_postprocess_alter()
  *
  */
+
 function services_modify_services_request_postprocess_alter($controller, $args, &$result){
 
   // Is this a "services_1" display?  (look in Views)
@@ -113,44 +114,83 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
 
 
+
+
+
+
+
+
+
+
   // *********
   // ALTER HOURS OUTPUT NEW!!!
   // *********
 
     if($args[0]['display_id'] == 'master_feed'){
+        $dup = false;$suspect = false;$num = 0;$date_found = true;
+        $day_num = date('j',strtotime($the_date))+0;
         foreach ($result as $key => $value) {
+            $value->hours = $value->hours[0];
             $value->exception = $value->exception['value'];
+            if($value->exception == '0' && $value->exam_hours == '0'){
+              $value->type = 'regular';
+            } else{
+              $value->type = 'exception';
+            }
 
-            $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
-            $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+
+            // if i have exception it has to have a regular so weed out the regular hours for that day
+            $today = date('Y-n-j',strtotime($value->hours['value']));
+            if($value->type == 'exception'){
+              $previous_day = date('Y-n-j',strtotime($result[$key-1]->hours['value']));
+              $next_day = date('Y-n-j',strtotime($result[$key+1]->hours[0]['value']));
+              if($previous_day == $today){
+                unset($result[$key-1]);
+                $raw_open_tz_tomorrow = strtotime($result[$key+1]->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($result[$key+1]->hours[0]['value']);
+              } else{
+                unset($result[$key+1]);
+                $raw_open_tz_tomorrow = strtotime($result[$key+2]->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($result[$key+2]->hours[0]['value']);
+              }
+            }
+
+
+            // U time adjusted from timezone
+            $raw_open_tz = strtotime($value->hours['value']) + ncsulib_foundation_adjust_for_timezone($value->hours['value']);
+            $raw_close_tz = strtotime($value->hours['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours['value']);
             $open = date('g:ia',$raw_open_tz);
             $close = date('g:ia',$raw_close_tz);
 
             // build hours display string
             if($value->twenty_four_hours == 1){
-                $value->display = '24 Hours';
+                $value->display = '24 hours';
+                $value->open_hours = $value->display;
             } else if($value->closed == 1){
-                $value->display = 'Closed';
+                $value->display = 'closed';
+                $value->open_hours = $value->display;
             } else if($value->appointment_only == 1){
-                $value->display = 'By appointment only';
-            } else if($value->midnight == 1){
-                $value->display = $open.' - midnight';
-                $close_str = 'midnight';
+                $value->display = 'by appointment only';
+                $value->open_hours = $value->display;
             } else if($open == '12:00am'){
-                $value->display = 'Open to '.$close;
-                $close_str = $close;
+                $open_str = ($open == '12:00am') ? 'midnight' : $open;
+                $open_str = ($open == '12:00pm') ? 'noon' : $open_str;
+                $close_str = ($close == '12:00am') ? 'midnight' : $close;
+                $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
+                $value->display = 'closes at '.$close_str;
+                $value->open_hours = $value->display;
             } else{
                 $open_str = ($open == '12:00am') ? 'midnight' : $open;
-                $open_str = ($open == '12:00pm') ? 'noon' : $open ;
+                $open_str = ($open == '12:00pm') ? 'noon' : $open_str;
                 $close_str = ($close == '12:00am') ? 'midnight' : $close;
-                $close_str = ($close == '12:00pm') ? 'noon' : $close;
+                $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
                 if($value->midnight == 0 && $close == '12:00am'){
-                    $open_str = 'Opens at '.$open;
-                    $close_str = '';
+                    $open_str = 'opens at '.$open_str;
                     $overnight = 1;
+                    $value->display = $open_str;
+                    $value->open_hours = $open_str;
+                } else{
+                  $value->display = $open_str.' - '.$close_str;
+                  $value->open_hours = $open_str.' - '.$close_str;
                 }
-                $value->display = $open_str.' - '.$close_str;
-
             }
 
 
@@ -160,7 +200,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             $day_close = (date('g', $raw_close_tz) < 4 || (date('g', $raw_close_tz) == 12 && $value->midnight == 1)) ? date('j')+1 : date('j'); //if close is 4am or less
             $time_close_today = date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y')));
             $time_close_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y'))));
-            $value->time_range = $time_open_today . ' - ' . $time_close_today;
+            // $value->time_range = $time_open_today . ' - ' . $time_close_today;
 
             if($value->closed == 1){
                 $value->is_open = 0;
@@ -182,25 +222,64 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
             // real time display
             if($value->twenty_four_hours == 1){
-                $value->real_time_display = '24 Hours';
+              $value->real_time_display = '24 Hours';
             } else if($value->is_open == 1){
-                $value->real_time_display = 'Closes at '.$close_str;
+              $value->real_time_display = 'closes at '.$close_str;
             } else if($value->appointment_only == 1){
-                $value->real_time_display = 'By Appointment Only';
+              $value->real_time_display = 'by appointment only';
+            } else if($value->closed == '1'){
+              $value->real_time_display = 'today';
             } else if($value->open_display == 'closed'){
-                $value->real_time_display = 'Opens at '.$open_str;
+              $now = date('U');
+              // if not open yet
+              if($now < $time_open_today_U){
+                $value->real_time_display = 'opens at '.$open_str;
+              } else if($now > $time_close_today_U){
+                $value->real_time_display = 'at '.$close_str;
+                // $value->real_time_display = 'Opens tomorrow at '.date('g:ia',$raw_open_tz_tomorrow);
+              }
             }
+
+            // semester string
+            $semester_str = preg_split('/ /si',$value->semester);
+            $value->semester = strtolower($semester_str[0]);
+
+            // repeat rule
+            $rule = preg_split('/;/si',$value->hours['rrule']);
+            $all_days = preg_split('/=/si',$rule[2]);
+            if($value->exception == 1 || $value->exam_hours == 1){ //if exception get closing date
+              $end_date = preg_split('/,/si',$all_days[1]);
+              $end_day = preg_split('/T/si',$end_date[0]);
+              $end_time = preg_split('/T/si',$end_day[1]);
+              $end_year = substr($end_day[0], 0, 4);
+              $end_mo = substr($end_day[0], 4, 2);
+              $end_day = substr($end_day[0], 6, 2);
+              $begin = date('M j',$raw_open_tz);
+              $end = date('j',strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400);
+              $value->day_start = $raw_open_tz;
+              if($end_year){
+                $value->day_end = strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400;
+              } else{
+                $value->day_end = $raw_open_tz;
+              }
+            } else{
+              $value->days_open = preg_split('/,/si',$all_days[1]);
+            }
+
+            // semester dates
+            $value->semester_start = $value->semester_dates['value'];
+            $value->semester_end = $value->semester_dates['value2'];
 
 
             // cleanup
-            unset($value->hours);
-            unset($value->library_short_name);
-            unset($value->service_short_name);
+            unset($value->hours['db']);
+            unset($value->semester_dates);
             unset($value->library);
             unset($value->service);
-            unset($value->library_name);
-            unset($value->service_name);
+
         }
+
+      $result = array_values($result);
     }
 
 
@@ -210,8 +289,18 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
 
 
+
+
+
+
+
+
+
+
+
+
   // *********
-  // ALTER HOURS OUTPUT
+  // ALTER HOURS OUTPUT OLD
   // *********
   //
   // Real time hours numbers (listing of all library services)
@@ -239,7 +328,88 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
       $value->open_display = date('g:ia',$raw_open_tz);
       $value->close_display = date('g:ia',$raw_close_tz);
       $value->exception = $value->exception['value'];
-      $value->display = hours_get_realtime_display_string($raw_open_tz, $raw_close_tz, $value->twenty_four_hours, $value->closed, $value->appointment_only, $value->midnight);
+      $value->display = hours_get_display_string($raw_open_tz, $raw_close_tz, $value->twenty_four_hours, $value->closed, $value->appointment_only, $value->midnight);
+      $value->status = ($value->closed == 0) ? 'open' : 'closed';
+
+      // U time adjusted from timezone
+      $raw_open_tz = strtotime($value->hours[0]['value']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $raw_close_tz = strtotime($value->hours[0]['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours[0]['value']);
+      $open = date('g:ia',$raw_open_tz);
+      $close = date('g:ia',$raw_close_tz);
+
+      if($value->twenty_four_hours == '1'){
+          $value->display = '24 hours';
+          $value->open_hours = $value->display;
+      } else if($value->closed == '1'){
+          $value->display = 'closed';
+          $value->open_hours = $value->display;
+      } else if($value->appointment_only == '1'){
+          $value->display = 'by appointment only';
+          $value->open_hours = $value->display;
+      } else if($open == '12:00am'){
+          $open_str = ($open == '12:00am') ? 'midnight' : $open;
+          $open_str = ($open == '12:00pm') ? 'noon' : $open_str;
+          $close_str = ($close == '12:00am') ? 'midnight' : $close;
+          $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
+          $value->display = 'closes at '.$close_str;
+          $value->open_hours = $value->display;
+      } else{
+          $open_str = ($open == '12:00am') ? 'midnight' : $open;
+          $open_str = ($open == '12:00pm') ? 'noon' : $open_str;
+          $close_str = ($close == '12:00am') ? 'midnight' : $close;
+          $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
+          if($value->midnight == '0' && $close == '12:00am'){
+              $open_str = 'opens at '.$open_str;
+              $overnight = 1;
+              $value->display = $open_str;
+              $value->open_hours = $open_str;
+          } else{
+            $value->display = $open_str.' - '.$close_str;
+            $value->open_hours = $open_str.' - '.$close_str;
+          }
+      }
+
+      $time_open_today = date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y')));
+      $time_open_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y'))));
+      $day_close = (date('g', $raw_close_tz) < 4 || (date('g', $raw_close_tz) == 12 && $value->midnight == 1)) ? date('j')+1 : date('j'); //if close is 4am or less
+      $time_close_today = date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y')));
+      $time_close_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y'))));
+
+      if($value->closed == 1){
+          $value->is_open = 0;
+      } else if($value->twenty_four_hours == 1){
+          $value->is_open = 1;
+      } else if($value->midnight == 0 && $close == '12:00am'){ //overnight
+          $value->is_open = 1;
+      } else if($time_open_today_U < date('U') && $time_close_today_U > date('U')){
+          $value->is_open = 1;
+      } else{
+          $value->is_open = 0;
+      }
+
+      if($value->twenty_four_hours == 1){
+        $value->real_time_display = '24 Hours';
+      } else if($value->is_open == 1){
+        //if overnight
+        if($value->midnight == '0' && $close_str == 'midnight'){
+          $value->real_time_display = 'overnight';
+        } else{
+          $value->real_time_display = 'closes at '.$close_str;
+        }
+      } else if($value->appointment_only == 1){
+        $value->real_time_display = 'by appointment only';
+      } else if($value->closed == '1'){
+        $value->real_time_display = 'closed today';
+      } else if($value->open_display == 'closed'){
+        $now = date('U');
+        // if not open yet
+        if($now < $time_open_today_U){
+          $value->real_time_display = 'opens at '.$open_str;
+        } else if($now > $time_close_today_U){
+          $value->real_time_display = 'at '.$close_str;
+          // $value->real_time_display = 'Opens tomorrow at '.date('g:ia',$raw_open_tz_tomorrow);
+        }
+      }
 
       // cleanup
       unset($value->hours);
@@ -346,7 +516,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
         if($value->midnight == '1'){
           $value->display = 'Closes at midnight';
         } else{
-          $value->display = 'Opens att '.$open_str;
+          $value->display = 'Opens at '.$open_str;
         }
       } else{
         if($close_str == '12:00am'){$close_str = 'midnight';}
@@ -372,7 +542,6 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
           if($value->exception == 0){
             unset($result[$key]);
           } else{
-          $value->test = 'hit';
             unset($result[$key-1]);
 
             if($args[0]['display_id'] == 'services_3'){
