@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Tech Lending feature.
+ */
+
+include_once 'tech_lending.features.inc';

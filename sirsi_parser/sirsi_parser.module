@@ -1,0 +1,344 @@
+<?php
+ /**
+ * @file parsing Sirsi web service data for all devices that are listed in
+ * Drupal's Device content type.  Storing the parsed data as a JSON document,
+ * to be processed client-side.
+ *
+ * Statuses from Sirsi web service:
+ *   TECHLEND: the device is available
+ *   TECHHOLD: device is checked in but not ready for checking out again yet
+ *   CHECKEDOUT: device is checked out
+ *   REPAIR: device is in long-term repair, not in circulation pool
+ *   CIRCDESK: same as TECHLEND
+ *   INTRANSIT: item being moved between branches
+ */
+
+require_once('sirsi_parser_block.inc');
+
+/**
+ * To discover information about the nodes in a given type
+ */
+function get_node_info($type) {
+  $result = db_query('SELECT n.title, f.field_catkey_value FROM {field_data_field_catkey} f INNER JOIN {node} n ON f.entity_id = n.nid WHERE n.type = :type', array(':type' => $type));
+  $device_info = array();
+  if ($result) {
+    while ($row = $result->fetchAssoc()) {
+      $device_info[$row['title']] = $row['field_catkey_value'];
+    }
+  }
+  return $device_info;
+}
+
+function lookup_os_and_type($catkey_id){
+  $result = db_query('SELECT n.title, o.field_device_os_value FROM {node} n INNER JOIN {field_data_field_technology_category} t ON t.field_technology_category_target_id = n.nid LEFT OUTER JOIN {field_data_field_device_os} o ON t.entity_id = o.entity_id LEFT OUTER JOIN {field_data_field_catkey} c ON t.entity_id = c.entity_id WHERE {field_catkey_value} = :catkey', array(':catkey' => $catkey_id));
+  $os_info = array();
+  if ($result) {
+    // In case of empty query, would like to return values of null strings
+    $os_info['type'] = 'null';
+    $os_info['os'] = 'null';
+    while ($row = $result->fetchAssoc()) {
+      $os_info['type'] = $row['title'];
+      $os_info['os'] = is_null($row['field_device_os_value']) ? 'null' : $row['field_device_os_value'];
+    }
+  }
+  return $os_info;
+}
+
+/**
+ * The main logic for parsing Sirsi data
+ */
+function sirsi_parse() {
+  $catkeys = get_node_info('device');
+  foreach ($catkeys as $device_name => $device_id) {
+    // Resets
+    $results                        = array();
+    $extended_item_data             = array();
+    $extended_item_data_library     = array();
+    $extended_item_data_item_types  = array();
+
+    // Extra data about this device
+    $os_and_type                    = lookup_os_and_type($device_id);
+
+    // XML file destination
+    $xml_file = DRUPAL_ROOT . '/sites/default/files/techlending/devices_data/' . $device_id . '.xml';
+
+    // wget that file from sirsi
+    exec('wget -q -O ' . $xml_file . ' "http://sirsi.lib.ncsu.edu/cgi-bin/availability.py?id='. $device_id . '&id_type=bib&return_type=item"', $output, $return_var);
+
+    // The $return_var is the status code returned by wget.  0 is good.
+    // Anything other than 0 is non-functional.  Problems include: wget not
+    // installed or wget not found by apache.
+    if ($return_var != 0) {
+      watchdog('wget', 'wget error: sirsi_parser was unable to run, there was a problem with wget in the sirsi_parser module.', array(), WATCHDOG_NOTICE, 'link');
+      break;
+    }
+
+    // Set files to group writeable in case a human runs cron manually through
+    // drush cron
+    chmod($xml_file, 0664);
+
+    // XML Error checking
+    if (file_exists($xml_file)) {
+      // It exists.  Load via simplexml
+      $xml = simplexml_load_file($xml_file);
+
+      // Check for syntax errors
+      if ($xml === false) {
+        foreach(libxml_get_errors() as $error) {
+          $error_string .= $error->message;
+        }
+        xml_error($device_name, $error_string);
+        break;
+      }
+
+      // Check for other errors
+      if ($xml->getName() == "Error"){
+        xml_error($device_name, strip_tags($xml->asXML()));
+        break;
+      }
+    } else {
+      watchdog('sirsi_parser', 'Failed to parse XML file for %device_name. File does not exist.', array('%device_name' => $device_name), WATCHDOG_WARNING);
+
+      // Notify admin via email
+      $params = array(
+        'device' => $device_name,
+        'errors' => "Failed to parse XML file, file not found"
+        );
+      drupal_mail('sirsi_parser', 'xml_not_found', 'cdmorris@ncsu.edu', language_default(), $params, 'sirsi_parser@lib.ncsu.edu', TRUE);
+      break;
+    }
+
+    $records = $xml->children('http://diglib.org/ilsdi/1.1');
+    $results['name']    = $device_name;
+    $results['catkey']  = $device_id;
+
+    // Retrieve the Operating System and Tech Category from Drupal
+    $results['os']      = $os_and_type['os'];
+    $results['type']    = substr(strtolower($os_and_type['type']), 0, 3);
+    $results['total']   = count($records->record->items->item);
+
+    // Take a deep breath.  Lots of looping below...
+    // We're going through the XML retrieved and making an array of the
+    // results that we care about.  In the end we'll put that array into JSON
+    // format and save it to the disk.
+    foreach ($records->record->items->item as $value){
+      $extended_item_data[] = $value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData;
+      $extended_item_data_library[] = strval($value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData->Library);
+    }
+    $counts_by_library = array_count_values($extended_item_data_library);
+    $extended_item_data_library_unique = array_values(array_unique($extended_item_data_library));
+
+    // Record the devices's $branch, $lend_period and $status
+    foreach ($extended_item_data_library_unique as $library) {
+
+      foreach ($extended_item_data as $value){
+        if ($value->Library == $library){
+          $branch = strtolower($library);
+          $lend_period = strtolower(strval($value->ItemType));
+          $status = strtolower(strval($value->Status));
+          $extended_item_data_item_types[$branch]['lending-periods'][$lend_period][] = $status;
+        }
+      }
+
+      // Record counts for all of the $statuses based on $lend_period
+      foreach ($extended_item_data_item_types[$branch]['lending-periods'] as $lend_period => $status){
+
+        // This bit of complexity takes care of converting the current
+        // associative key into a numeric index so as to avoid adding the
+        // totals together more than once.  Hopefully this can be refactored.
+        $numeric_keys = array_keys($extended_item_data_item_types[$branch]['lending-periods']);
+        $current_index = array_search($lend_period, $numeric_keys);
+
+        // Record the total number of devices by status by lending_period
+        $extended_item_data_item_types[$branch]['lending-periods'][$lend_period] = array_count_values($status);
+
+        // Record total number of devices, regardless of status
+        $extended_item_data_item_types[$branch]['lending-periods'][$lend_period]['total'] = count($status);
+
+        // Aggregate number of a type of device available at a branch.  Have
+        // to check if the array exists yet first to avoid E_NOTICE
+        if (isset($extended_item_data_item_types[$branch]['lending-periods'][$lend_period]['techlend'])) {
+          $available = $extended_item_data_item_types[$branch]['lending-periods'][$lend_period]['techlend'];
+          $total = count($status);
+        }
+
+        // Record this total number of devices regardless of status at this
+        // branch.  Initialization first to prevent E_NOTICES.
+        if (!isset($aggregates)){
+          $aggregates = array();
+        }
+        if (!isset($aggregates[$branch])){
+          $aggregates[$branch] = array();
+        }
+        if (!isset($aggregates[$branch][$results['type']])) {
+          $aggregates[$branch][$results['type']] = array();
+        }
+        if (!isset($aggregates[$branch][$results['type']]['total'])) {
+          $aggregates[$branch][$results['type']]['total'] = 0;
+        }
+        if (isset($total)) {
+          if ($current_index == 0) {
+            $aggregates[$branch][$results['type']]['total'] += $total;
+          }
+        }
+
+        // Record this number for each type of devcice. Initialization first
+        // to prevent E_NOTICES.
+        if (!isset($aggregates[$branch][$results['type']]['available'])){
+          $aggregates[$branch][$results['type']]['available'] = array();
+        }
+        if (!isset($aggregates[$branch][$results['type']]['available']['all'])) {
+          $aggregates[$branch][$results['type']]['available']['all'] = 0;
+        }
+        if (isset($available)){
+          if ($current_index == 0) {
+            $aggregates[$branch][$results['type']]['available']['all'] += $available;
+          }
+        }
+
+        // Record this number for each type of device by OS. Initialization
+        // first to prevent E_NOTICES.
+        if (!isset($aggregates[$branch][$results['type']]['available'][$results['os']])) {
+          $aggregates[$branch][$results['type']]['available'][$results['os']] = 0;
+        }
+        if (isset($available)){
+          if ($current_index == 0) {
+            $aggregates[$branch][$results['type']]['available'][$results['os']] += $available;
+          }
+        }
+      }
+
+      $results['buildings'][$branch] = $extended_item_data_item_types[$branch];
+      $results['buildings'][$branch]['total'] = $counts_by_library[$library];
+    }
+
+  // LRL is not a branch library and therefore not something that we want to
+  // display.  Therefore it will be removed from the results array if it is
+  // present.
+  if (isset($results['buildings']['lrl'])) {
+    unset($results['buildings']['lrl']);
+  }
+
+  // Because the fields are so subject to change (along with their values)
+  // I'm choosing to convert this to JSON and process the display client-
+  // side through JavaScript (Handlebars) and HTML.
+  $availability_data = (json_encode($results));
+  $json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/' . $device_id . '.json';
+  $handle = fopen($json, 'w') or die("can't open file");
+  fwrite($handle, $availability_data);
+  fclose($handle);
+
+  // Aggregate data
+  $aggregate_data = (json_encode($aggregates));
+  $agg_json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/aggregate.json';
+  $agg_handle = fopen($agg_json, 'w') or die("can't open file");
+  fwrite($agg_handle, $aggregate_data);
+  fclose($agg_handle);
+
+  // Set files to group writeable in case a human runs cron manually through
+  // drush cron
+  chmod($json, 0664);
+  chmod($agg_json, 0664);
+  }
+}
+
+
+/**
+ * hook_js_alter
+ *
+ * Adding handlebars if it isn't present, right now it's global in the theme
+ */
+function sirsi_parser_js_alter(&$javascript) {
+  if (!array_key_exists('sites/all/themes/ncsulib_foundation/scripts/handlebars-v1.3.0.js', $javascript)) {
+    $module_path = drupal_get_path('module', 'sirsi_parser');
+    drupal_add_js($module_path . '/js/vendor/handlebars-v1.3.0.js', 'file');
+  }
+}
+
+/**
+ * hook_preprocess_node
+ *
+ */
+function sirsi_parser_preprocess_node(&$variables) {
+  // only load for device content types
+  if ($variables['type'] == 'device') {
+    // Set theme path
+    $theme_path = drupal_get_path('theme', 'ncsulib_foundation');
+    $module_path = drupal_get_path('module', 'sirsi_parser');
+
+    // Adding Handlebars.js templating for the device availability data only
+    // if the device has a value in the catkey field
+    if (!empty($variables['node']->field_catkey)){
+      // getting the value of the catkey on this node
+      $field_catkey = field_get_items('node', $variables['node'], 'field_catkey');
+      $field_catkey_render = field_view_value('node', $variables['node'], 'field_catkey', $field_catkey[0]);
+      $field_catkey_markup = render($field_catkey_render);
+      $catkey_raw = str_replace(' ', '', $field_catkey_markup);
+      // modify field_catkey for handlebars
+      $variables['content']['field_catkey'] = array(
+        '#markup' => '<h2 class="clear">'.t("Availability").'</h2><div class="hb"></div>',
+        '#weight' => 100,
+        );
+    }
+
+    global $base_url;
+    $js_vars = array(
+      'catkey' => $catkey_raw,
+      'base_url' => $base_url
+      );
+    // Pass in the catkey value to JavaScript
+    drupal_add_js(array('sirsi_parser' => $js_vars), 'setting');
+
+    // This JavaScript calls the data and displays it to the node
+    drupal_add_js($module_path . '/js/device-template.js', array('type' => 'file', 'group' => 101, 'weight' => 1) );
+  }
+}
+
+/**
+ * XML Error reporting function
+ */
+function xml_error($this, $errors){
+  watchdog('sirsi_parser', 'XML Error: The %device_name XML document could not be parsed due to the following error(s): %error_string', array('%device_name' => $this, '%error_string' => $errors), WATCHDOG_ERROR);
+
+  // notify admin via email
+  $params = array (
+      'device' => $this,
+      'errors' => $errors
+    );
+  drupal_mail('sirsi_parser', 'xml_error', 'cdmorris@ncsu.edu', language_default(), $params, 'email@noreply.edu', TRUE);
+}
+
+/**
+ * Implements hook_mail
+ *
+ * When there is an error: email the results.
+ */
+function sirsi_parser_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'xml_error':
+      $message['id'] = 'sirsi-parser-xml-error';
+      $message['subject'] = 'sirsi_parser error detected for '. $params['device'];
+      $message['body'][] = drupal_html_to_text($params['errors']);
+      break;
+
+    default:
+      $message['id'] = 'sirsi-parser-xml-not-found';
+      $message['subject'] = 'sirsi_parser error detected for '. $params['device'];
+      $message['body'][] = drupal_html_to_text($params['errors']);
+      break;
+  }
+}
+
+/**
+ * Implments hook_cron
+ */
+function sirsi_parser_cron() {
+  // Run every 5 minutes
+
+  $interval = variable_get('sirsi_parser_interval', 60*5);
+  if (time() >= variable_get('sirsi_parser_next_execution', 0)) {
+    sirsi_parse();
+    watchdog('sirsi_parser', 'sirsi_parser ran', NULL, WATCHDOG_INFO);
+    variable_set('sirsi_parser_next_execution', time() + $interval);
+  }
+}

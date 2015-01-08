@@ -1,0 +1,332 @@
+<?php
+
+/** GLOBAL FORM ALTERATIONS **/
+function form_alterations_form_alter(&$form, &$form_state, $form_id) {
+  // add js file to alter WYSIWYG
+  $theme_path = drupal_get_path('theme', 'ncsulib_foundation');
+  drupal_add_js($theme_path . '/scripts/alter-node-form.js', array('type' => 'file', 'group' => 101, 'weight' => 1));
+
+  if($form_id == 'user_profile_form')
+  {
+    $form['account']['mail']['#description'] = t('This email address is automatically supplied from the campus directory.  If it should be changed, go here:  <a href=" http://www.ncsu.edu/directory/">http://www.ncsu.edu/directory/</a> and use the link to "Update My Directory Listing"');
+  }
+}
+
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter
+ *
+ * Removing the promote and sticky options for all content types.  Hiding the
+ * Workbench Access field from users for automated section assignment.
+ */
+function form_alterations_form_node_form_alter(&$form, &$form_state, $form_id) {
+  $form['options']['promote'] = FALSE;
+  $form['options']['sticky'] = FALSE;
+
+  global $user;
+  $show = in_array('website admin', $user->roles) ? TRUE : FALSE;
+  $form['field_workbench_access']['#access'] = $show;
+
+}
+
+
+/** INDIVIDUAL CONTENT TYPE FORMS **/
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ *
+ * Removing legacy fields from sight on the Event form.
+ * Note that this hook is also implemented on the admin
+ * theme template.
+ */
+function form_alterations_form_event_node_form_alter(&$form, &$form_state, $form_id) {
+    $form['field_gid']['#access'] = FALSE;
+    $form['field_adx_image']['#access'] = FALSE;
+    $form['field_owner']['#access'] = FALSE;
+    $form['field_organization']['#access'] = FALSE;
+    $form['field_event_start']['#access'] = FALSE;
+    $form['field_event_created']['#access'] = FALSE;
+    $form['field_hill_location_fix']['#access'] = FALSE;
+    $form['field_contact_information']['#access'] = FALSE;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ *
+ * JW's code from author_disabled module, affects the Page content type
+ */
+function form_alterations_form_page_node_form_alter(&$form, &$form_state, $form_id) {
+  //If this is a node form
+
+    //Modify the URL path settings vertical tab
+    $form['path']['alias']['#required'] = TRUE;
+    $form['path']['alias']['#field_prefix'] = $GLOBALS['base_url'] . '/' . (variable_get('clean_url', 0) ? '' : '?q=');
+
+    //Determine if the node form is in "add" or "edit" mode
+    $path_holder = drupal_get_path_alias();
+    $path_holder_array = explode('/', $path_holder);
+
+    //If the node form is in "add" or "edit" mode
+    if ($path_holder_array[1]=='add' || $path_holder_array[2]=='edit') {
+      //Determine if the user has the role of "website admin"
+      //This will need to be rewritten to queue off a permission flag which can be assigned to roles.
+      global $user;
+      $website_admin = 0;
+      foreach ($user->roles as $role) {
+        if ($role=="website admin") {
+          $website_admin = 1;
+        }
+      }
+      //If the user does not have the role of "website admin"
+      if ($website_admin==0) {
+        //Display the authoring information, but disable editing
+        $form['author']['#access'] = TRUE;
+        $form['author']['name']['#disabled'] = TRUE;
+        $form['author']['name']['#description'] = t('The author who first created this content. <i>Anonymous</i> corresponds to an author no longer with the NCSU Libraries.');
+        $form['author']['date']['#disabled'] = TRUE;
+        $form['author']['date']['#description'] = t('Format: 2012-06-22 14:49:36 -0400. The date format is YYYY-MM-DD and -0400 is the time zone offset from UTC.');
+      }
+    }
+}
+
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ *
+ * Modifications to the Device node form.
+ */
+function form_alterations_form_device_node_form_alter(&$form, &$form_state, $form_id) {
+  // Legacy fields that will be hidden for now, and will be
+  // removed once the new system is in place (see sirsi_parser module)
+  $form['field_device_type']['#access'] = FALSE;
+  $form['field_device_availability']['#access'] = FALSE;
+  $form['field_device_total']['#access'] = FALSE;
+  $form['field_available_vml']['#access'] = FALSE;
+  $form['field_total_vml']['#access'] = FALSE;
+  $form['field_available_nrl']['#access'] = FALSE;
+  $form['field_total_nrl']['#access'] = FALSE;
+  $form['field_building']['#access'] = FALSE;
+
+  // Ajax for the Lending Method checkboxes initiation
+  $form['field_lending_method']['und']['#ajax'] = array(
+      'callback' => '_ajax_device_form_callback',
+      'wrapper' => 'callback-wrap',
+      'effect' => 'fade',
+    );
+  $form['#prefix'] = '<div id="callback-wrap">';
+  $form['#suffix'] = '</div>';
+
+  // Setting Request Form URL disabled and not required by default
+  $form['field_request_form_url']['#prefix'] = '<div id="callback-wrap">';
+  $form['field_request_form_url']['#suffix'] = '</div>';
+  $form['field_request_form_url']['und'][0]['#disabled'] = TRUE;
+  $form['field_request_form_url']['und'][0]['#required'] = FALSE;
+
+  // Checking on whether the $form_state has values (only happens when
+  // there is an interaction made by the user) and if the "requestonline"
+  // value exists as the default_value for the Lending Method (i.e., it has
+  // been selected already)
+  if (empty($form_state['values']) && in_array("requestonline", $form['field_lending_method']['und']['#default_value'])){
+    $form['field_request_form_url']['und'][0]['#disabled'] = FALSE;
+    $form['field_request_form_url']['und'][0]['#required'] = TRUE;
+  }
+
+  // $form_state's values array is only present after a user has interacted
+  // with the form (i.e., checked a box).  The Ajax callback function will
+  // rebuild the form as detailed in the callback function
+  if (!empty($form_state['values']['field_lending_method'])) {
+    foreach ($form_state['values']['field_lending_method']['und'] as $key => $value) {
+      if (in_array("requestonline", $value)){
+        $form['field_request_form_url']['und'][0]['#disabled'] = FALSE;
+        $form['field_request_form_url']['und'][0]['#required'] = TRUE;
+      } else {
+        // Sweep out the value of the Request Form URL field if the requestonline
+        // value isn't present (anymore).
+        unset($form['field_request_form_url']['und'][0]['#default_value']);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ *
+ * Modifications to the Project node form.
+ */
+function form_alterations_form_project_node_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  // if moderator
+  if (!isset($user->roles[16])) {
+    $form['field_project_user_activities']['#access'] = FALSE;
+    $form['field_story_type']['#access'] = FALSE;
+  }
+
+
+}
+
+
+/**
+ * Implements hook_form_FORM_ID_alter()
+ *
+ * Spaces
+ */
+
+function form_alterations_form_space_node_form_alter(&$form, &$form_state, $form_id) {
+  // Removing not-yet-used fields from view
+  // $form['field_space_features']['#access'] = FALSE;
+  $form['field_private_computer_count']['#access'] = FALSE;
+  $form['field_public_computer_count']['#access'] = FALSE;
+
+  // Ajax for the Reservation Method drop-down
+  $form['field_reservation_method']['und']['#ajax'] = array(
+      'callback' => '_ajax_device_form_callback',
+      'wrapper' => 'callback-wrap',
+      'effect' => 'fade',
+    );
+  $form['#prefix'] = '<div id="callback-wrap">';
+  $form['#suffix'] = '</div>';
+
+
+  // Set the #disabled and #required settings for the request_form_url field
+  // based on the value of the reservation_method field value at the starting
+  // state
+  $default_res_by_form = ($form['field_reservation_method']['und']['#default_value'][0] == 'By Mediated Email Form');
+  $form['field_request_form_url']['#disabled'] = !$default_res_by_form;
+  $form['field_request_form_url']['und'][0]['#required'] = $default_res_by_form;
+
+  // Set the #disabled and #required settings for the request_form_url field
+  // based on the value of the reservation_method field value at the starting
+  // state.
+  $default_res_by_system = ($form['field_reservation_method']['und']['#default_value'][0] == 'By Room Reservation System');
+  $form['field_room_res_id']['#disabled'] = !$default_res_by_system;
+  $form['field_room_res_id']['und'][0]['value']['#required'] = $default_res_by_system;
+
+  // Change the #disabled and #required settings of request_form_url if the
+  // editor chooses "By Mediated Email Form"
+  if (isset($form_state['values']['field_reservation_method'])){
+    $res_meth = $form_state['values']['field_reservation_method']['und'][0]['value'];
+    switch ($res_meth) {
+      case 'By Mediated Email Form':
+        $form['field_request_form_url']['#disabled'] = FALSE;
+        $form['field_request_form_url']['und'][0]['#required'] = TRUE;
+
+        $form['field_room_res_id']['#disabled'] = TRUE;
+        $form['field_room_res_id']['und'][0]['value']['#required'] = FALSE;
+        unset($form['field_room_res_id']['und'][0]['value']['#default_value']);
+        break;
+
+      case 'By Room Reservation System':
+        $form['field_request_form_url']['#disabled'] = TRUE;
+        $form['field_request_form_url']['und'][0]['#required'] = FALSE;
+        unset($form['field_request_form_url']['und'][0]['#default_value']);
+
+        $form['field_room_res_id']['#disabled'] = FALSE;
+        $form['field_room_res_id']['und'][0]['value']['#required'] = TRUE;
+        break;
+
+      default:
+        $form['field_request_form_url']['#disabled'] = TRUE;
+        $form['field_request_form_url']['und'][0]['#required'] = FALSE;
+        unset($form['field_request_form_url']['und'][0]['#default_value']);
+
+        $form['field_room_res_id']['#disabled'] = TRUE;
+        $form['field_room_res_id']['und'][0]['value']['#required'] = FALSE;
+        unset($form['field_room_res_id']['und'][0]['value']['#default_value']);
+        break;
+    }
+  }
+}
+
+/**
+ * Callback for form_alterations_form_device_node_form_alter and
+ * form_alterations_form_space_node_form_alter
+ *
+ * On an ajax submit, the form builder function is called again, then the $form
+ * and $form_state are passed to this callback function so it can select which
+ * portion of the form to send on to the client.
+ *
+ * @return renderable array (the Request Form URL element)
+ */
+function _ajax_device_form_callback($form, $form_state) {
+  return $form;
+}
+
+/**
+ * Callback for space ajax handling
+ */
+function _ajax_space_form_callback($form, $form_state) {
+  return $form['field_space'];
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter
+ *
+ * Modifying what is selected by default on the Reserve a Room page based on
+ * current_path()
+ */
+function form_alterations_form_views_exposed_form_alter(&$form, &$form_state, $form_id) {
+
+  unset($form['field_building_name_value']['#options']['All']);
+  $current_path = current_path();
+  $path_array = explode('/', $current_path);
+
+  if(isset($path_array[1]) && $form_state['input']['field_building_name_value'] == 'All'){
+    switch ($path_array[1]) {
+      case 'hunt':
+        $form_state['input']['field_building_name_value'] = 'hunt';
+        break;
+
+      case 'hill':
+        $form_state['input']['field_building_name_value'] = 'hill';
+        break;
+    }
+
+  }
+}
+
+/* experimental */
+/**
+ * Implements hook_theme_registry_alter()
+**/
+function form_alterations_theme_registry_alter(&$theme_registry) {
+  $mod_path = drupal_get_path('module', 'form_alterations');
+  $theme_registry_copy = $theme_registry;       // munge on a copy
+  _theme_process_registry($theme_registry_copy, 'phptemplate', 'theme_engine', 'pow', $mod_path);
+  $theme_registry += array_diff_key($theme_registry_copy, $theme_registry);
+  $hooks = array('node');
+  foreach ($hooks as $h) {
+    _form_alterations_insert_after_first_element($theme_registry[$h]['theme paths'], $mod_path);
+  }
+}
+
+/**
+ * Helper function for re-ordering arrays (needed by theme_registry_alter)
+*/
+function _form_alterations_insert_after_first_element(&$a, $element) {
+  if(is_array($a)) {
+    $first_element = array_shift($a);
+    array_unshift($a, $first_element, $element);
+  }
+}
+
+
+/**
+ * Implements hook_form_FORM_ID_alter
+ *
+ * Removing unnecessary parts of user form
+ */
+function form_alterations_form_user_profile_form_alter(&$form, $form_state, $form_id) {
+
+  // modify only the user profile form
+  if ($form_id === 'user_profile_form') {
+    if($GLOBALS['user']->roles[3] != 'website admin'){
+      unset($form['field_staff_primary_photo']); //hide staff photos for non-web admin
+      unset($form['field_staff_photo']);
+    }
+    unset($form['account']['current_pass']);
+    // unset($form['account']['mail']);
+    unset($form['account']['pass']);
+    unset($form['account']['name']);
+  }
+}

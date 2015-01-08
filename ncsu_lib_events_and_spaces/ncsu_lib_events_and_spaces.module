@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the ncsu_lib_events_and_spaces feature.
+ */
+
+include_once 'ncsu_lib_events_and_spaces.features.inc';

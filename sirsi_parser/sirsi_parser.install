@@ -1,0 +1,62 @@
+<?php
+
+/**
+ * @file
+ * The install and update code for the sirsi_parser module.
+ *
+ * @ingroup sirsi_parser
+ */
+
+/**
+ * Implements hook_install().
+ *
+ * -Adding the body field
+ * -Configuring the body field
+ * -Creating the "catkey" field that is responsible for syncing data from
+ *  Sirsi to Drupal
+ */
+function sirsi_parser_install() {
+  // The variable to set the next import
+  variable_set('sirsi_parser_next_execution', NULL);
+
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function sirsi_parser_uninstall() {
+  variable_del('sirsi_parser_next_execution');
+
+  // Gather all the example content that might have been created while this
+  // module was enabled
+  $query = 'SELECT nid FROM {node} n WHERE n.type = :type';
+  $result = db_query($query, array('type' => 'device'));
+  $nids = array();
+  foreach ($result as $row) {
+    $nids[] = $row->nid;
+  }
+
+  // Delete all the nodes at once
+  node_delete_multiple($nids);
+
+  // Loop over each of the fields defined by this module and delete all
+  // instances of the field, their data, and the field itself.
+  foreach (array_keys(_job_post_installed_fields()) as $field) {
+    field_delete_field($field);
+  }
+
+  // Loop over any remaining field instances attached to the device content
+  // type (such as the body field) and delete them individually.
+  $instances = field_info_instances('node', 'device');
+  foreach ($instances as $instance_name => $instance) {
+    field_delete_instance($instance);
+  }
+
+  // Delete the device content type
+  node_type_delete('device');
+
+  // Purge all field info
+  field_purge_batch(1000);
+}
+
+?>

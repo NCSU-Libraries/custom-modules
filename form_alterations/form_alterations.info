@@ -1,0 +1,5 @@
+name = Form Alterations
+description = Modify the forms used to edit or add content.
+core = 7.x
+version = 7.x-1.0
+package = NCSU Libraries Custom
