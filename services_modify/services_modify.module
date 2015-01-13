@@ -144,6 +144,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
               $value->type = 'exception';
             }
 
+          $value->test = 'sdfasdfa';
 
             // if i have exception it has to have a regular so weed out the regular hours in favor of an exception for that day
             $today = date('Y-n-j',strtotime($value->hours['value']));
