@@ -230,7 +230,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             if($value->twenty_four_hours == 1){
               $value->real_time_display = '24 Hours';
             } else if($value->is_open == 1){
-              $value->real_time_display = 'closes at '.$close_str;
+              if($value->midnight == 0 && $close_str == 'midnight'){
+                $value->real_time_display = 'overnight';
+              } else{
+                $value->real_time_display = 'closes at '.$close_str;
+              }
             } else if($value->appointment_only == 1){
               $value->real_time_display = 'by appointment only';
             } else if($value->closed == '1'){
