@@ -290,6 +290,23 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
       $result = array_values($result);
     }
+
+      // hunt exceptions feed
+  if($view_name == 'library_hours_2' && ($args[0]['display_id'] == 'services_2')){
+    foreach ($result as $key => $value) {
+      //bring back closed exception
+      $value->closed = ($value->display == 'Closed') ? 1 : 0;
+
+      //  // some cleanup
+      unset($value->exception);
+      unset($value->exam_hours);
+      unset($value->library_name);
+      unset($value->library_id);
+      unset($value->service_name);
+      unset($value->service_id);
+      unset($value->service_title);
+    }
+  }
 }
 
 
