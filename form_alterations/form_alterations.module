@@ -10,6 +10,8 @@ function form_alterations_form_alter(&$form, &$form_state, $form_id) {
   {
     $form['account']['mail']['#description'] = t('This email address is automatically supplied from the campus directory.  If it should be changed, go here:  <a href=" http://www.ncsu.edu/directory/">http://www.ncsu.edu/directory/</a> and use the link to "Update My Directory Listing"');
   }
+
+  unset($form['field_interim']['und']['#options']['_none']);
 }
 
 
