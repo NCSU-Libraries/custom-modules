@@ -256,22 +256,26 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             $rule = preg_split('/;/si',$value->hours['rrule']);
             $all_days = preg_split('/=/si',$rule[2]);
             if($value->exception == 1 || $value->exam_hours == 1){ //if exception get closing date
-              $end_date = preg_split('/,/si',$all_days[1]);
-              $end_day = preg_split('/T/si',$end_date[0]);
-              $end_time = preg_split('/T/si',$end_day[1]);
-              $end_year = substr($end_day[0], 0, 4);
-              $end_mo = substr($end_day[0], 4, 2);
-              $end_day = substr($end_day[0], 6, 2);
-              $begin = date('M j',$raw_open_tz);
-              $end = date('j',strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400);
-              $value->day_start = $raw_open_tz;
-              if($end_year){
-                $value->day_end = strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400;
-              } else{
-                $value->day_end = $raw_open_tz;
-              }
+                $end_date = preg_split('/,/si',$all_days[1]);
+                $end_day = preg_split('/T/si',$end_date[0]);
+                $end_time = preg_split('/T/si',$end_day[1]);
+                $end_year = substr($end_day[0], 0, 4);
+                $end_mo = substr($end_day[0], 4, 2);
+                $end_day = substr($end_day[0], 6, 2);
+                $begin = date('M j',$raw_open_tz);
+                $end = date('j',strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400);
+                $value->day_start = $raw_open_tz;
+
+                $DST = date('I', strtotime($end_year.'-'.$end_mo.'-'.$end_day)-86400);
+                $offset = ($DST == 1) ? 86400 : 82800;
+
+                if($end_year){
+                    $value->day_end = strtotime($end_year.'-'.$end_mo.'-'.$end_day)-$offset;
+                } else{
+                    $value->day_end = $raw_open_tz;
+                }
             } else{
-              $value->days_open = preg_split('/,/si',$all_days[1]);
+                $value->days_open = preg_split('/,/si',$all_days[1]);
             }
 
             // semester dates
