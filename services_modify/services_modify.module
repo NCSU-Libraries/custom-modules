@@ -118,6 +118,16 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
 
 
+// *********
+  // ALTER DEVICES OUTPUT NEW!!!
+  // *********
+    if($args[0]['display_id'] == 'devices_catkey_feed'){
+      foreach ($result as $key => $value) {
+        $value->url = 'http://sirsi.lib.ncsu.edu/cgi-bin/availability.py?id='. $value->catkey . '&id_type=bib&return_type=item';
+
+        unset($value->nid);
+      }
+    }
 
 
 
@@ -187,10 +197,10 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
                 $close_str = ($close == '12:00am') ? 'midnight' : $close;
                 $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
                 if($value->midnight == 0 && $close == '12:00am'){
-                    $open_str = 'opens at '.$open_str;
+                    $open_str = $open_str;
                     $overnight = 1;
-                    $value->display = $open_str;
-                    $value->open_hours = $open_str;
+                    $value->display = 'opens at '.$open_str;
+                    $value->open_hours = 'opens at '.$open_str;
                 } else{
                   $value->display = $open_str.' - '.$close_str;
                   $value->open_hours = $open_str.' - '.$close_str;
@@ -210,14 +220,15 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
                 $value->is_open = 0;
             } else if($value->twenty_four_hours == 1){
                 $value->is_open = 1;
-            } else if($value->midnight == 0 && $close == '12:00am'){ //overnight
-                $value->is_open = 1;
+            // } else if($value->midnight == 0 && $close == '12:00am'){ //overnight
+                // $value->is_open = 1;
             } else if($time_open_today_U < date('U') && $time_close_today_U > date('U')){
                 $value->is_open = 1;
             } else{
                 $value->is_open = 0;
             }
 
+            // is it open yet?
             if($value->is_open == 1){
                 $value->open_display = 'open';
             } else{
