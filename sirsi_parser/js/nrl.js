@@ -14,14 +14,14 @@ var nrlComputers = {
 
   getLaptops : function() {
     jQuery.get("/sites/default/files/techlending/devices_data/aggregate.json", function(data) {
-      var count = writeNumbers(data, ['lap'], ['nrl']);
+      // var count = writeNumbers(data, ['lap'], ['nrl']);
       jQuery('<div/>', {
           'class': 'row',
-          html: nrlComputers.htmlTemplate(count.mac, 'apple', 'Mac Laptops')
+          html: nrlComputers.htmlTemplate(data.nrl.lap.available.mac, 'apple', 'Mac Laptops')
         }).appendTo('.availability-nrl');
       jQuery('<div/>', {
           'class': 'row',
-          html: nrlComputers.htmlTemplate(count.win, 'windows', 'Windows Laptops')
+          html: nrlComputers.htmlTemplate(data.nrl.lap.available.win, 'windows', 'Windows Laptops')
         }).appendTo('.availability-nrl');
       })
       .fail(function() {
