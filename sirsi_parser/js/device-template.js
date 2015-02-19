@@ -61,11 +61,12 @@ Drupal.behaviors.sirsi_parser = {
           case "nrl":
               return "Natural Resources Library";
           default:
-              _gaq = _gaq || [];
-              _gaq.push(
-                  ['_setAccount', 'UA-17138302-1'],
-                  ['_trackEvent', 'techlending errors', 'library location error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1), e, undefined, true]
-                  );
+              // _gaq = _gaq || [];
+              // _gaq.push(
+              //     ['_setAccount', 'UA-17138302-1'],
+              //     ['_trackEvent', 'techlending errors', 'library location error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1), e, undefined, true]
+              //     );
+                // ga('send', 'event', 'techlending errors', 'library location error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1), e, undefined, true);
               break;
           }
         });
@@ -82,11 +83,12 @@ Drupal.behaviors.sirsi_parser = {
             case "laptop-any":
                 return "2 hour";
             default:
-                _gaq = _gaq || [];
-                _gaq.push(
-                  ['_setAccount', 'UA-17138302-1'],
-                  ['_trackEvent', 'techlending errors', 'lending period error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1), e, undefined, true]
-                  );
+                // ga('send', 'event', 'techlending errors', 'lending period error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1),e, undefined, true);
+                // _gaq = _gaq || [];
+                // _gaq.push(
+                //   ['_setAccount', 'UA-17138302-1'],
+                //   ['_trackEvent', 'techlending errors', 'lending period error for '+ document.URL.slice(document.URL.lastIndexOf('/')+1), e, undefined, true]
+                //   );
                 break;
           }
         });
