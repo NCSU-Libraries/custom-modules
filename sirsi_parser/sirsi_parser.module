@@ -104,7 +104,7 @@ function sirsi_parse() {
         'device' => $device_name,
         'errors' => "Failed to parse XML file, file not found"
         );
-      drupal_mail('sirsi_parser', 'xml_not_found', 'cdmorris@ncsu.edu', language_default(), $params, 'sirsi_parser@lib.ncsu.edu', TRUE);
+      drupal_mail('sirsi_parser', 'xml_not_found', 'eolson@ncsu.edu', language_default(), $params, 'sirsi_parser@lib.ncsu.edu', TRUE);
       break;
     }
 
@@ -305,7 +305,7 @@ function xml_error($this, $errors){
       'device' => $this,
       'errors' => $errors
     );
-  drupal_mail('sirsi_parser', 'xml_error', 'cdmorris@ncsu.edu', language_default(), $params, 'email@noreply.edu', TRUE);
+  drupal_mail('sirsi_parser', 'xml_error', 'eolson@ncsu.edu', language_default(), $params, 'email@noreply.edu', TRUE);
 }
 
 /**
