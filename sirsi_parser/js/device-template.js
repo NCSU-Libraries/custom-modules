@@ -43,7 +43,7 @@ var d = {
                     var available = lendPeriod[lend]['techlend'];
                     if(!available){
                         var checkedout = lendPeriod[lend]['checkedout'];
-                        available = checkedout - total;
+                        available = total - checkedout;
                     }
                     d.str += '<tr class="building">';
                     d.str += '<td>'+building+'</td>';

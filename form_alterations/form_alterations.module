@@ -6,8 +6,7 @@ function form_alterations_form_alter(&$form, &$form_state, $form_id) {
   $theme_path = drupal_get_path('theme', 'ncsulib_foundation');
   drupal_add_js($theme_path . '/scripts/alter-node-form.js', array('type' => 'file', 'group' => 101, 'weight' => 1));
 
-  if($form_id == 'user_profile_form')
-  {
+  if($form_id == 'user_profile_form'){
     $form['account']['mail']['#description'] = t('This email address is automatically supplied from the campus directory.  If it should be changed, go here:  <a href=" http://www.ncsu.edu/directory/">http://www.ncsu.edu/directory/</a> and use the link to "Update My Directory Listing"');
   }
 
@@ -272,7 +271,7 @@ function form_alterations_form_views_exposed_form_alter(&$form, &$form_state, $f
   unset($form['field_building_name_value']['#options']['All']);
   $current_path = current_path();
   $path_array = explode('/', $current_path);
-
+  // echo $form_state['input']['field_building_name_value'];
   if(isset($path_array[1]) && $form_state['input']['field_building_name_value'] == 'All'){
     switch ($path_array[1]) {
       case 'hunt':
