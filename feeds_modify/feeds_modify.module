@@ -31,6 +31,14 @@ function feeds_modify_feeds_after_parse(FeedsSource $source, FeedsParserResult $
 
       log_to_file($i . " " . $event['ATTENDEE:CN']);
       $event['LOCATION'] = explode(',', $event['LOCATION']);
+      $cat = $event['CATEGORIES'];
+      $cat_ary = array();
+      foreach($cat as $c){
+        $term = taxonomy_term_load($c);
+        array_push($cat_ary,$term->name);
+      }
+      $event['CATEGORIES'] = $cat_ary;
+
       $i++;
     }
   }
