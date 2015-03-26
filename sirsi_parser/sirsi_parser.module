@@ -121,12 +121,16 @@ function sirsi_parse() {
     // We're going through the XML retrieved and making an array of the
     // results that we care about.  In the end we'll put that array into JSON
     // format and save it to the disk.
-    foreach ($records->record->items->item as $value){
-      $extended_item_data[] = $value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData;
-      $extended_item_data_library[] = strval($value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData->Library);
+    if($records->record->items->item){
+      foreach ($records->record->items->item as $value){
+        $extended_item_data[] = $value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData;
+        $extended_item_data_library[] = strval($value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData->Library);
+      }
+      $counts_by_library = array_count_values($extended_item_data_library);
+      $extended_item_data_library_unique = array_values(array_unique($extended_item_data_library));
+    } else{
+      return;
     }
-    $counts_by_library = array_count_values($extended_item_data_library);
-    $extended_item_data_library_unique = array_values(array_unique($extended_item_data_library));
 
     // Record the devices's $branch, $lend_period and $status
     foreach ($extended_item_data_library_unique as $library) {
