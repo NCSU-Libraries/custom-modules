@@ -11,10 +11,15 @@ function feeds_modify_date_ical_mapping_sources_alter(&$sources) {
     // Example of what might be done with this alter hook:
     // Add "ATTENDEE:CN" iCal property to the mapping sources
     $sources['ATTENDEE:CN'] = array(
-        'name' => t('Attendee: CN'),
-        'description' => t('The CN parameter of the ATTENDEE property: the attendee\'s Common Name.'),
-        'date_ical_parse_handler' => 'parsePropertyParameter',
-      );
+      'name' => t('Attendee: CN'),
+      'description' => t('The CN parameter of the ATTENDEE property: the attendee\'s Common Name.'),
+      'date_ical_parse_handler' => 'parsePropertyParameter',
+    );
+    $sources['WORKSHOP'] = array(
+      'name' => t('Workshop'),
+      'description' => t('All of these events are workshops'),
+      'date_ical_parse_handler' => 'parsePropertyParameter',
+    );
     return $sources;
   }
 }

@@ -306,7 +306,6 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             $value->semester_start = $value->semester_dates['value'];
             $value->semester_end = $value->semester_dates['value2'];
 
-
             // cleanup
             unset($value->hours['db']);
             unset($value->semester_dates);
@@ -418,11 +417,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
  *
  * Not in use as of 8/2/2013
  */
-function services_modify_rest_server_response_formatters_alter(&$formatters) {
-  $formatters['adx'] = array(
-    'mime types' => array('application/xml', 'text/xml'),
-    'view' => 'RESTServerViewExtra',
-    'view arguments' => array('format' => 'adx'),
-  );
+// function services_modify_rest_server_response_formatters_alter(&$formatters) {
+//   $formatters['adx'] = array(
+//     'mime types' => array('application/xml', 'text/xml'),
+//     'view' => 'RESTServerViewExtra',
+//     'view arguments' => array('format' => 'adx'),
+//   );
 
-}
+// }
