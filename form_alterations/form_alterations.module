@@ -343,7 +343,8 @@ function form_alterations_form_user_profile_form_alter(&$form, $form_state, $for
 
   // modify only the user profile form
   if ($form_id === 'user_profile_form') {
-    if($GLOBALS['user']->roles[3] != 'website admin'){
+
+    if($GLOBALS['user']->roles[3] != 'website admin' && $GLOBALS['user']->roles[17] != 'personnel'){
       unset($form['field_staff_primary_photo']); //hide staff photos for non-web admin
       unset($form['field_staff_photo']);
       unset($form['field_external_bio_page']);
