@@ -1,0 +1,120 @@
+<?php
+ /**
+ * @file parsing Sirsi web service data for all devices that are listed in
+ * Drupal's Device content type.  Storing the parsed data as a JSON document,
+ * to be processed client-side.
+ *
+ * Statuses from Sirsi web service:
+ *   TECHLEND: the device is available
+ *   TECHHOLD: device is checked in but not ready for checking out again yet
+ *   CHECKEDOUT: device is checked out
+ *   REPAIR: device is in long-term repair, not in circulation pool
+ *   CIRCDESK: same as TECHLEND
+ *   INTRANSIT: item being moved between branches
+ */
+
+    function getCatkeyStr(){
+        $url = 'http://www.lib.ncsu.edu/rest_devices/master-devices-feed.json';
+        $catkey_ary = array();
+        $json = file_get_contents($url);
+        $data = json_decode($json);
+        $n = 0;
+        foreach($data as $c){
+            if(is_numeric($c->catkey)){
+                $n++;
+                if($n>1){$str .= '+';}
+                $str .= $c->catkey;
+            }
+        }
+
+        return $str;
+    }
+
+    /**
+    * The main logic for parsing Sirsi data
+    */
+    function sirsi_data() {
+
+        libxml_use_internal_errors(true);
+        $catkeys = getCatkeyStr();
+
+        $url = 'http://sirsi.lib.ncsu.edu/cgi-bin/availability.py?id='.$catkeys.'&id_type=bib&return_type=item';
+        $data = file_get_contents($url);
+        $xml = new SimpleXMLElement($url, NULL, true);
+        $records = $xml->children('http://diglib.org/ilsdi/1.1');
+
+        if($records){
+
+            // loop through all catkeys
+            foreach($records as $r){
+                // each catkey
+                $attr = $r->bibliographic->attributes();
+                $catkey = (string)$attr['id'];
+                $titles = array();
+
+                foreach($r->items->item as $value){
+                    $data = xml2array($value->children('http://www.lib.ncsu.edu/catalog/schema/recordstatus')->ExtendedItemData);
+                    $title_obj = xml2array($value->children('http://ncip.envisionware.com/documentation/ncip_v2_0.xsd')->LookupItemResponse);
+                    $title = $title_obj['ItemOptionalFields']['ItemDescription']['CallNumber'];
+
+                    // add title
+                    array_push($titles, $title);
+                    $item_data[$catkey]['TITLE'] = array_values(array_unique($titles));
+
+                    // set status and array
+                    if(!isset($item_data[$catkey][$data['Library']][$data['ItemType']][$data['Status']])){
+                        $item_data[$catkey][$data['Library']][$data['ItemType']][$data['Status']] = 1;
+                    } else{
+                        $item_data[$catkey][$data['Library']][$data['ItemType']][$data['Status']] = $item_data[$catkey][$data['Library']][$data['ItemType']][$data['Status']]+1;
+                    }
+
+                    // set status total
+                    if(!isset($item_data[$catkey][$data['Library']][$data['ItemType']]['TOTAL'])){
+                        $item_data[$catkey][$data['Library']][$data['ItemType']]['TOTAL'] = 1;
+                    } else{
+                        $item_data[$catkey][$data['Library']][$data['ItemType']]['TOTAL'] = $item_data[$catkey][$data['Library']][$data['ItemType']]['TOTAL']+1;
+                    }
+                }
+            }
+        }
+
+        $json = json_encode($item_data);
+        write_json_file($json);
+    }
+
+    /**
+     * sirsi_data() helper function
+     *
+     * converts xml to array
+     */
+    function xml2array($xmlObject, $out = array ()){
+        foreach ( (array) $xmlObject as $index => $node ){
+            $out[$index] = ( is_object ( $node ) ) ? xml2array ( $node ) : $node;
+        }
+
+        return $out;
+    }
+
+    function write_json_file($json){
+        $dest = '/var/www/site/drupal/sites/all/modules/custom/sirsi_data/master.json';
+
+        $myfile = fopen($dest, "w") or die("Unable to open file!");
+        fwrite($myfile, (string)$json);
+        fclose($myfile);
+    }
+
+    /**
+     * Implments hook_cron
+     */
+    function sirsi_data_cron() {
+      // Run every 5 minutes
+
+      $interval = variable_get('sirsi_data_interval', 60*5);
+      if (time() >= variable_get('sirsi_data_next_execution', 0)) {
+        sirsi_data();
+        watchdog('sirsi_data', 'sirsi_data ran', NULL, WATCHDOG_INFO);
+        variable_set('sirsi_data_next_execution', time() + $interval);
+      }
+    }
+
+?>

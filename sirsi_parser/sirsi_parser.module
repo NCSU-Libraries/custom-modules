@@ -49,6 +49,9 @@ function lookup_os_and_type($catkey_id){
  */
 function sirsi_parse() {
   $catkeys = get_node_info('device');
+  $test_ary = array();
+
+
   foreach ($catkeys as $device_name => $device_id) {
     // Resets
     $results                        = array();
@@ -65,6 +68,7 @@ function sirsi_parse() {
     // wget that file from sirsi
     exec('wget -q -O ' . $xml_file . ' "http://sirsi.lib.ncsu.edu/cgi-bin/availability.py?id='. $device_id . '&id_type=bib&return_type=item"', $output, $return_var);
 
+
     // The $return_var is the status code returned by wget.  0 is good.
     // Anything other than 0 is non-functional.  Problems include: wget not
     // installed or wget not found by apache.
@@ -76,6 +80,7 @@ function sirsi_parse() {
     // Set files to group writeable in case a human runs cron manually through
     // drush cron
     chmod($xml_file, 0664);
+
 
     // XML Error checking
     if (file_exists($xml_file)) {
@@ -108,9 +113,12 @@ function sirsi_parse() {
       break;
     }
 
+
     $records = $xml->children('http://diglib.org/ilsdi/1.1');
     $results['name']    = $device_name;
     $results['catkey']  = $device_id;
+
+    array_push($test_ary, $results['name']);
 
     // Retrieve the Operating System and Tech Category from Drupal
     $results['os']      = $os_and_type['os'];
@@ -216,35 +224,39 @@ function sirsi_parse() {
       $results['buildings'][$branch]['total'] = $counts_by_library[$library];
     }
 
-  // LRL is not a branch library and therefore not something that we want to
-  // display.  Therefore it will be removed from the results array if it is
-  // present.
-  if (isset($results['buildings']['lrl'])) {
-    unset($results['buildings']['lrl']);
+    // LRL is not a branch library and therefore not something that we want to
+    // display.  Therefore it will be removed from the results array if it is
+    // present.
+    if (isset($results['buildings']['lrl'])) {
+      unset($results['buildings']['lrl']);
+    }
+
+    // Because the fields are so subject to change (along with their values)
+    // I'm choosing to convert this to JSON and process the display client-
+    // side through JavaScript (Handlebars) and HTML.
+    $availability_data = (json_encode($results));
+    $json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/' . $device_id . '.json';
+    $handle = fopen($json, 'w') or die("can't open file");
+    fwrite($handle, $availability_data);
+    fclose($handle);
+
+    // Aggregate data
+    $aggregate_data = (json_encode($aggregates));
+    $agg_json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/aggregate.json';
+    $agg_handle = fopen($agg_json, 'w') or die("can't open file");
+    fwrite($agg_handle, $aggregate_data);
+    fclose($agg_handle);
+
+    // Set files to group writeable in case a human runs cron manually through
+    // drush cron
+    chmod($json, 0664);
+    chmod($agg_json, 0664);
   }
-
-  // Because the fields are so subject to change (along with their values)
-  // I'm choosing to convert this to JSON and process the display client-
-  // side through JavaScript (Handlebars) and HTML.
-  $availability_data = (json_encode($results));
-  $json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/' . $device_id . '.json';
-  $handle = fopen($json, 'w') or die("can't open file");
-  fwrite($handle, $availability_data);
-  fclose($handle);
-
-  // Aggregate data
-  $aggregate_data = (json_encode($aggregates));
-  $agg_json = DRUPAL_ROOT .'/sites/default/files/techlending/devices_data/aggregate.json';
-  $agg_handle = fopen($agg_json, 'w') or die("can't open file");
-  fwrite($agg_handle, $aggregate_data);
-  fclose($agg_handle);
-
-  // Set files to group writeable in case a human runs cron manually through
-  // drush cron
-  chmod($json, 0664);
-  chmod($agg_json, 0664);
-  }
+    // mail('eolson@ncsu.edu', 'SIRSI', implode($test_ary));
 }
+
+
+
 
 
 /**

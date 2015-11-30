@@ -1,0 +1,5 @@
+name        = "Sirsi Data"
+description = "Device availability data in JSON format. Written by Erik Olson 11.20.15"
+pacakge     = "Custom"
+core        = 7.x
+version     = 7.x-1.0

@@ -332,6 +332,9 @@ function hours_sanitize_weekdays($days){
         case 'FR-SU':
             return 'Fri-Sun';
             break;
+        case 'SU-TH':
+            return 'Sun-Thu';
+            break;
         default:
             return $day;
     }
@@ -567,6 +570,7 @@ function hours_get_realtime_ary(){
         array(
             'library'=>22493,
             'services'=>array(
+                'makerspace'=>22488 ,
                 'Creamery'=>22486 ,
                 'Hill of Beans'=>22487 ,
                 'special collections'=>22490

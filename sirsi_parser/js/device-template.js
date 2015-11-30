@@ -37,19 +37,31 @@ var d = {
         for (var key in p) {
             if (p.hasOwnProperty(key)) {
                 var building = d.getBuilding(key);
+                if(building == 'Textiles Library'){continue;}
                 var lendPeriod = p[key]['lending-periods'];
+                var c = 0;
                 for(var lend in lendPeriod){
                     var total = lendPeriod[lend]['total'];
                     var available = lendPeriod[lend]['techlend'];
-                    if(!available){
-                        var checkedout = lendPeriod[lend]['checkedout'];
-                        available = total - checkedout;
+                    if(d.getLendPeriod(lend) != ""){
+
+                        if(!available){
+                            var hold = lendPeriod[lend]['techhold'] != undefined ? lendPeriod[lend]['techhold'] : 0;
+                            var repair = lendPeriod[lend]['repair'] != undefined ? lendPeriod[lend]['repair'] : 0;
+                            var checkedout = lendPeriod[lend]['checkedout'];
+                            available = total - checkedout - repair - hold;
+                        }
+                        d.str += '<tr class="building">';
+                        if(c < 1){
+                            d.str += '<td>'+building+'</td>';
+                        } else{
+                            d.str += '<td></td>';
+                        }
+                        d.str += '<td>'+d.getLendPeriod(lend)+'</td>';
+                        d.str += '<td>'+available+' of '+total+'</td>';
+                        d.str += '</tr>';
                     }
-                    d.str += '<tr class="building">';
-                    d.str += '<td>'+building+'</td>';
-                    d.str += '<td>'+d.getLendPeriod(lend)+'</td>';
-                    d.str += '<td>'+available+' of '+total+'</td>';
-                    d.str += '</tr>';
+                    c++;
                 }
 
             }
@@ -98,7 +110,7 @@ var d = {
             case "laptop-any":
                 return "2 hour";
             default:
-                break;
+                return "";
         }
     }
 }

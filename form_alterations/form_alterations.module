@@ -7,7 +7,11 @@ function form_alterations_form_alter(&$form, &$form_state, $form_id) {
   drupal_add_js($theme_path . '/scripts/alter-node-form.js', array('type' => 'file', 'group' => 101, 'weight' => 1));
 
   if($form_id == 'user_profile_form'){
-    $form['account']['mail']['#description'] = t('This email address is automatically supplied from the campus directory.  If it should be changed, go here:  <a href=" http://www.ncsu.edu/directory/">http://www.ncsu.edu/directory/</a> and use the link to "Update My Directory Listing"');
+    $form['account']['mail']['#description'] = t('This is your default email address and is supplied from the campus directory.  If it should be changed in the campus directory, go here:  <a href=" http://www.ncsu.edu/directory/">http://www.ncsu.edu/directory/</a> and use the link to "Update My Directory Listing"');
+  }
+  // default to empty so user doesn't auto appear in staff directory
+  if($form_id == 'user_register_form'){
+    $form['field_staff_position']['und']['#default_value'] = '';
   }
 
   unset($form['field_interim']['und']['#options']['_none']);
@@ -49,6 +53,24 @@ function form_alterations_form_event_node_form_alter(&$form, &$form_state, $form
     $form['field_event_created']['#access'] = FALSE;
     $form['field_hill_location_fix']['#access'] = FALSE;
     $form['field_contact_information']['#access'] = FALSE;
+
+    // require on of the where fields to be filled out
+    $form['#validate'][] = 'form_alterations_location_field_validate';
+
+}
+
+
+/**
+ *
+ * Validate Where fields. At least one of the two field must be selected
+ */
+function form_alterations_location_field_validate($form, &$form_state) {
+  $space_val = $form['field_space']['und']['#value'];
+  $non_lib_space_val = $form['field_non_libraries_space']['und'][0]['value']['#value'];
+  if($non_lib_space_val == '' && !$space_val){
+    form_set_error('field_non_libraries_space', 'Please enter a location for this event in at least ONE of the "Where" fields.');
+    form_set_error('field_space', '');
+  }
 }
 
 /**
@@ -154,17 +176,17 @@ function form_alterations_form_device_node_form_alter(&$form, &$form_state, $for
  *
  * Modifications to the Project node form.
  */
-function form_alterations_form_project_node_form_alter(&$form, &$form_state, $form_id) {
-  global $user;
+// function form_alterations_form_project_node_form_alter(&$form, &$form_state, $form_id) {
+//   global $user;
 
-  // if moderator
-  if (!isset($user->roles[16])) {
-    $form['field_project_user_activities']['#access'] = FALSE;
-    $form['field_story_type']['#access'] = FALSE;
-  }
+//   // if moderator
+//   if (!isset($user->roles[16])) {
+//     $form['field_project_user_activities']['#access'] = FALSE;
+//     $form['field_story_type']['#access'] = FALSE;
+//   }
 
 
-}
+// }
 
 
 /**
@@ -324,6 +346,7 @@ function form_alterations_form_user_profile_form_alter(&$form, $form_state, $for
     if($GLOBALS['user']->roles[3] != 'website admin'){
       unset($form['field_staff_primary_photo']); //hide staff photos for non-web admin
       unset($form['field_staff_photo']);
+      unset($form['field_external_bio_page']);
     }
     unset($form['account']['current_pass']);
     // unset($form['account']['mail']);

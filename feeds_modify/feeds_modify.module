@@ -6,8 +6,8 @@
  * Adding the ATTENDEE:CN to map to a User
  */
 function feeds_modify_date_ical_mapping_sources_alter(&$sources) {
-  if ($source_id = 'classmate') {
 
+  if ($source_id = 'classmate') {
     // Example of what might be done with this alter hook:
     // Add "ATTENDEE:CN" iCal property to the mapping sources
     $sources['ATTENDEE:CN'] = array(
@@ -30,21 +30,107 @@ function feeds_modify_date_ical_mapping_sources_alter(&$sources) {
  *
  */
 function feeds_modify_feeds_after_parse(FeedsSource $source, FeedsParserResult $result) {
+
+  // for News Blogs
+  if ($source->id == 'news_blogs') {
+    foreach ($result->items as &$blog) {
+
+      $c = array();
+      $t = array();
+      foreach($blog['domains']['category'] as $cats){
+        array_push($c, $blog['tags'][$cats]);
+      }
+      foreach($blog['domains']['tag'] as $tags){
+        array_push($t, $blog['tags'][$tags]);
+      }
+      $blog['extracted_tags'] = $t;
+      $blog['tags'] = $c;
+    }
+  }
+
   if ($source->id == 'classmate') {
     $i = 1;
+
+
     foreach ($result->items as &$event) {
 
-      log_to_file($i . " " . $event['ATTENDEE:CN']);
-      $event['LOCATION'] = explode(',', $event['LOCATION']);
+      // if multiple instructors
+      // array_push($instructors,$event['ATTENDEE:CN']);
+      // $event['ATTENDEE:CN'] = $instructors;
+      // $newId = $event['UID'];
+      // if($newId == $oldId){
+      // } else{
+      //   $instructors = array();
+      // }
+      // $oldId = $newId;
+      // $instructors[] = $event['ATTENDEE:CN'];
+      // $event['SUMMARY'] = implode(',',$instructors);
+
+      // $instructors = '';
+      // foreach($event as $key => $instr){
+      //   if($key == 'ATTENDEE:CN'){
+      //     $instructors.=$instr.' ';
+      //     $event['DESCRIPTION'] .= $instructors;
+      //   }
+      // }
+      // $event['DESCRIPTION'] = $event;
+
+      // multiple locations
+      $event['LOCATION'] = str_replace(array('/'), '', $event['LOCATION']);
+      $loc_ary = explode(',', $event['LOCATION']);
+
+      // if no Drupal ID then add string name to external room field
+      $non_lib_ary = array();
+      $lib_ary = array();
+      foreach($event['LOCATION'] as $l){
+        if(!is_numeric($l)){
+          array_push($non_lib_ary, $l);
+        } else{
+          array_push($lib_ary, $l);
+        }
+      }
+
+      $event['LOCATION:ALTREP'] = $non_lib_ary;
+      $event['LOCATION'] = $lib_ary;
+
+      // strip extra chars from description and summary
+      $replace = array("\\");
+      $event['DESCRIPTION'] = str_replace($replace, '', $event['DESCRIPTION']);
+      $event['DESCRIPTION'] = preg_replace('/style=".*?"/','', $event['DESCRIPTION']);
+      $event['DESCRIPTION'] = preg_replace('/<span.*?>/','', $event['DESCRIPTION']);
+      $event['DESCRIPTION'] = preg_replace('/<\/span>/','', $event['DESCRIPTION']);
+      $event['SUMMARY'] = str_replace($replace, '', $event['SUMMARY']);
+      // $event['DESCRIPTION'] = strip_tags($event['DESCRIPTION'], '<p><a><div><h2><h3><h4>');
+
+      // get category ID's
       $cat = $event['CATEGORIES'];
       $cat_ary = array();
       foreach($cat as $c){
-        $term = taxonomy_term_load($c);
+        $term = taxonomy_term_load(trim($c));
         array_push($cat_ary,$term->name);
       }
       $event['CATEGORIES'] = $cat_ary;
 
+      // label everything a workshop
+      $event['WORKSHOP'] = 'Classes & Workshops';
+
       $i++;
     }
   }
+}
+
+/**
+ * Implements hook_feeds_parser_sources_alter().
+ */
+function feeds_modify_feeds_parser_sources_alter(&$sources, $content_type) {
+  $sources['blogs'] = array(
+    'name' => t('Tags'),
+    'description' => t('An array of tags that have been assigned to the feed item.'),
+    'callback' => 'my_source_get_source',
+  );
+}
+
+function my_source_get_source(FeedsSource $source, FeedsParserResult $result, $key) {
+  $item = $result->currentItem();
+  return $item['extracted_tags'];
 }
