@@ -121,18 +121,16 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
 
 // *********
-  // ALTER DEVICES OUTPUT
+  // ALTER EVENTS OUTPUT
   // *********
-    // if($args[0]['display_id'] == 'devices_catkey_feed'){
-    //   foreach ($result as $key => $value) {
-    //     $value->url = 'http://sirsi.lib.ncsu.edu/cgi-bin/availability.py?id='. $value->catkey . '&id_type=bib&return_type=item';
-    //     $xml_data = simplexml_load_file($value->url);
-    //     $xml = $xml_data->children('http://diglib.org/ilsdi/1.1');
-    //     $value->records = $xml->record->items->item;
+  if($args[0]['display_id'] == 'master_events_feed'){
+    foreach ($result as $key => $value) {
+      $value->building = $value->building{0}['value'];
+    }
+  }
 
-    //     unset($value->nid);
-    //   }
-    // }
+
+
 
 
 
@@ -151,6 +149,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
     if($args[0]['display_id'] == 'master_feed'){
         $dup = false;$suspect = false;$num = 0;$date_found = true;
         $day_num = date('j',strtotime($the_date))+0;
+
         foreach ($result as $key => $value) {
             $value->hours = $value->hours[0];
             $value->exception = $value->exception['value'];
@@ -177,10 +176,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
             // U time adjusted from timezone
             $raw_open_tz = strtotime($value->hours['value']) + ncsulib_foundation_adjust_for_timezone($value->hours['value']);
-            $raw_close_tz = strtotime($value->hours['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours['value']);
+            $raw_close_tz = strtotime($value->hours['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours['value2']);
             $open = date('g:ia',$raw_open_tz);
             $close = date('g:ia',$raw_close_tz);
-
+            $value->test = $value->hours['value2'];
+            $value->test2 = ncsulib_foundation_adjust_for_timezone(date('Y-m-d'));
             // build hours display string
             if($value->twenty_four_hours == 1){
                 $value->display = '24 hours';
@@ -201,8 +201,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             } else{
                 $open_str = ($open == '12:00am') ? 'midnight' : $open;
                 $open_str = ($open == '12:00pm') ? 'noon' : $open_str;
-                $close_str = ($close == '12:00am') ? 'midnight' : $close;
-                $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
+                $close_str = $close;
+                if($close == '12:00am'){$close_str='midnight';}
+                if($close == '12:00pm'){$close_str='noon';}
+                // $close_str = ($close == '12:00am') ? 'midnight' : $close;
+                // $close_str = ($close == '12:00pm') ? 'noon' : $close_str;
                 if($value->midnight == 0 && $close == '12:00am'){
                     $open_str = $open_str;
                     $overnight = 1;
@@ -305,7 +308,6 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             // semester dates
             $value->semester_start = $value->semester_dates['value'];
             $value->semester_end = $value->semester_dates['value2'];
-
 
             // cleanup
             unset($value->hours['db']);
@@ -418,11 +420,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
  *
  * Not in use as of 8/2/2013
  */
-function services_modify_rest_server_response_formatters_alter(&$formatters) {
-  $formatters['adx'] = array(
-    'mime types' => array('application/xml', 'text/xml'),
-    'view' => 'RESTServerViewExtra',
-    'view arguments' => array('format' => 'adx'),
-  );
+// function services_modify_rest_server_response_formatters_alter(&$formatters) {
+//   $formatters['adx'] = array(
+//     'mime types' => array('application/xml', 'text/xml'),
+//     'view' => 'RESTServerViewExtra',
+//     'view arguments' => array('format' => 'adx'),
+//   );
 
-}
+// }

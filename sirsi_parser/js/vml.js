@@ -28,8 +28,9 @@ var vmlComputers = {
   },
 
   getWindowsLaptops : function() {
-    jQuery.get("/sites/default/files/techlending/devices_data/aggregate.json", function(data) {
-      var winlap = data.vetmed.lap.available.win;
+    jQuery.get("/sites/default/files/techlending/devices_data/2729663.json", function(data) {
+      // var winlap = data.vetmed.lap.available.win;
+      var winlap = data.buildings.vetmed["lending-periods"]["laptop-pat"].techlend;
       jQuery("<span class='tab'>Windows Laptops: </span>").insertAfter(".fa-icon-windows");
       jQuery('<div/>', {
           'class': 'row',

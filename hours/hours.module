@@ -69,6 +69,27 @@ function hours_get_current_month_hours(){
 }
 
 
+// function hours_get_exception($exception, $month_hours){
+//     $exam_dates_ary = array();
+
+//     foreach($month_hours as $day){
+//         if($day[$exception] == 1){
+//             $new_date_range = $day['day_end'];
+//             if($new_date_range != $old_date_range && $new_date_range != ''){
+//                 if($day['day_start'] != $day['day_end']){
+//                     $range = date('M j',$day['day_start']).'-'.date('j',$day['day_end']);
+//                 } else{
+//                     $range = date('M j',$day['day_start']);
+//                 }
+//                 array_push($exam_dates_ary,array('date_range'=>$range, 'display'=>$day['open_hours']));
+//             }
+//             $old_date_range = $new_date_range;
+//         }
+//     }
+
+//     return $exam_dates_ary;
+// }
+
 function hours_get_exception($exception, $month_hours){
     $exam_dates_ary = array();
 
@@ -76,10 +97,12 @@ function hours_get_exception($exception, $month_hours){
         if($day[$exception] == 1){
             $new_date_range = $day['day_end'];
             if($new_date_range != $old_date_range && $new_date_range != ''){
-                if($day['day_start'] != $day['day_end']){
-                    $range = date('M j',$day['day_start']).'-'.date('j',$day['day_end']);
+                $day_start = date('M j',$day['day_start']);
+                $day_end = date('M j',$day['day_end']);
+                if($day_start != $day_end){
+                    $range = $day_start.'-'.date('j',$day['day_end']);
                 } else{
-                    $range = date('M j',$day['day_start']);
+                    $range = $day_start;
                 }
                 array_push($exam_dates_ary,array('date_range'=>$range, 'display'=>$day['open_hours']));
             }
@@ -142,6 +165,45 @@ function hours_get_first_date(){
         'month_num'=>$month_num,
         'num_days_in_month'=>$num_days_in_month
     );
+}
+
+// get hours of x number of consecutive days
+function hours_get_day_range($lib,$service,$num_days){
+    if(!$lib){
+        $lib = arg(1);
+    }
+
+    if(!$service){
+        $service = arg(2);
+    }
+    if(!$num_days){
+        $num_days = 1;
+    }
+
+    $first_date = date('Y-m-j');
+    $end_date = date('Y-m-j',strtotime($first_date. '+ '.$num_days.' days'));
+
+    $json_data = file_get_contents('https://www.lib.ncsu.edu/rest_hours/master-hours-feed.json?library_short_name='.$lib.'&service_short_name='.$service.'&date='.$first_date.'&end_date='.$end_date);
+    // $json_data = file_get_contents($GLOBALS['base_url'].'/rest_hours/master-hours-feed.json?library_short_name='.$lib.'&service_short_name='.$service.'&date='.$first_date['year'].'-'.$first_date['month'].'-'.$first_date['day'].'&exception=0&exam_hours=0&end_date='.$end_date);
+    $json = json_decode($json_data);
+
+    foreach($json as $key => $j){
+        $d = date('Y-m-j',strtotime($first_date. '+ '.$key.' days'));
+
+        if($j->display == 'by appointment only'){
+            $json[$key]->display = 'appointment only';
+        }
+        if($d == date('Y-m-j')){
+            $json[$key]->date_display = 'Today';
+        // } else if($d == date('Y-m-j',strtotime(date('Y-m-j') .'+ 1 day'))){
+            // $json[$key]->date_display = 'Tomorrow';
+        } else{
+            $json[$key]->date_display = date('M j',strtotime(date('Y-m-j') .'+ '.$key.' days'));
+        }
+    }
+
+    return $json;
+
 }
 
 function hours_get_reg_schedule($lib,$service){
@@ -269,6 +331,9 @@ function hours_sanitize_weekdays($days){
             break;
         case 'FR-SU':
             return 'Fri-Sun';
+            break;
+        case 'SU-TH':
+            return 'Sun-Thu';
             break;
         default:
             return $day;
@@ -505,6 +570,7 @@ function hours_get_realtime_ary(){
         array(
             'library'=>22493,
             'services'=>array(
+                'makerspace'=>22488 ,
                 'Creamery'=>22486 ,
                 'Hill of Beans'=>22487 ,
                 'special collections'=>22490
