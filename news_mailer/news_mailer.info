@@ -1,0 +1,5 @@
+name = News Emailer Module
+description = Send out mass emails too patrons
+core = 7.x
+version = 7.x-0.1
+package = NCSU Libraries Custom

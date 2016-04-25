@@ -60,3 +60,40 @@ function views_alterations_entity_info_alter(&$entity_info) {
     'custom settings' => TRUE,
   );
 }
+
+
+/**
+* Implements hook_views_pre_render().
+*/
+function views_alterations_views_pre_render(&$entity_info) {
+  // kpr($entity_info);
+  // alter fields for software classes
+  if($entity_info->name == 'software'){
+      if($entity_info->current_display == 'page_1'){
+        foreach($entity_info->result as $keyA => $item){
+          foreach($item->field_field__software_user_activity as $keyB => $ua){
+            $entity_info->result[$keyA]->field_field__software_user_activity[$keyB]['rendered']['#markup'] = strtolower(str_replace(array('amp;','&',' '), '-', $ua['rendered']['#markup']));
+          }
+        }
+      }
+      if($entity_info->current_display == 'block_4'){
+        foreach($entity_info->result as $keyA => $item){
+          foreach($item->field_field__software_user_activity_2 as $keyB => $ua2){
+            $entity_info->result[$keyA]->field_field__software_user_activity_2[$keyB]['rendered']['#markup'] = strtolower(str_replace(array('amp;','&',' '), '-', $ua2['rendered']['#markup']));
+          }
+        }
+      }
+  }
+  if($entity_info->name == 'room_finder'){
+    if($entity_info->current_display == 'page_2'){
+      foreach($entity_info->result as $keyA => $item){
+        foreach($item->field_field_space_user_activity as $keyB => $ua){
+          // print_r($ua);
+          $entity_info->result[$keyA]->field_field_space_user_activity[$keyB]['rendered']['#markup'] = strtolower(str_replace(array('amp;','&',' '), '-', $ua['rendered']['#markup']));
+        }
+      }
+    }
+  }
+
+  return $entity_info;
+}

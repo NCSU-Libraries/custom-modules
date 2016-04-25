@@ -23,11 +23,9 @@ function hours_views_pre_build(&$view) {
         } else{
             $filters['field_hours_value']['default_to_date'] = $my_date;
         }
-        //       $filters['field_dates_value2']['default_date'] = 'first day of ' . $my_date;
-        //       $filters['field_dates_value2']['default_to_date'] = 'last day of ' . $my_date;
+
         $view->display_handler->override_option('filters', $filters);
     }
-    // print_r($filters);
 }
 
 function hours_get_cal_data($day){
@@ -36,6 +34,8 @@ function hours_get_cal_data($day){
 
     if($day['exam_hours'] == 1){
         $color = 'exam-hours';
+    } else if($day['adverse_weather'] == 1){
+        $color = 'adverse-weather';
     } else if($day['exception'] == 1){
         $color = 'exception';
     } else{

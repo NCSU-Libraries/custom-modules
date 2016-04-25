@@ -306,7 +306,7 @@ function sirsi_parser_preprocess_node(&$variables) {
     drupal_add_js(array('sirsi_parser' => $js_vars), 'setting');
 
     // This JavaScript calls the data and displays it to the node
-    drupal_add_js($module_path . '/js/device-template.js', array('type' => 'file', 'group' => 101, 'weight' => 1) );
+    // drupal_add_js($module_path . '/js/device-template.js', array('type' => 'file', 'group' => 101, 'weight' => 1) );
   }
 }
 

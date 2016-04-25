@@ -46,6 +46,7 @@ var admin = {
             }
         }
 
+
         // if exception is checked hide repeat stuff
         document.getElementById('edit-field-exception-und').onchange = function(){
             if(document.getElementById('edit-field-hours-und-0-show-repeat-settings').checked){
@@ -224,7 +225,17 @@ var admin = {
 
             exception = (end_date_ary.length > 1) ? '[Exam Hours ' +start_date+'-'+end_date : '[Exam Hours ' +start_date;
             admin.title_days = ']';
-        }else{ //regular weekly days
+        }else if(document.getElementById('edit-field-adverse-weather-und').checked){ //adverse weather hours
+            start_date_raw = document.getElementById('edit-field-hours-und-0-value-datepicker-popup-0').value;
+            end_date_raw = document.getElementById('edit-field-hours-und-0-rrule-until-child-datetime-datepicker-popup-0').value;
+            start_date_ary = start_date_raw.split('/');
+            end_date_ary = end_date_raw.split('/');
+            start_date = start_date_ary[0]+'/'+start_date_ary[1];
+            end_date = end_date_ary[0]+'/'+end_date_ary[1];
+
+            exception = (end_date_ary.length > 1) ? '[Adverse Weather ' +start_date+'-'+end_date : '[Adverse Weather ' +start_date;
+            admin.title_days = ']';
+        } else{ //regular weekly days
             if(title_days_ary[0] != undefined){
                 admin.title_days = (title_days_ary.length > 1) ? '['+title_days_ary[0]+'-'+title_days_ary[title_days_ary.length-1]+']' : '['+title_days_ary[0]+']';
             }
@@ -232,6 +243,16 @@ var admin = {
 
         // D. H. Hill Library - Creamery - Spring 2015 [Closed 01/01-01/31]
         document.getElementById('edit-title').value = title[0]+exception+admin.title_days;
+
+        //make sure exception box is checked if exam hours/closed/adverse weather/appt only are checked
+        //if(
+            //document.getElementById('edit-field-closed-und').checked ||
+            //document.getElementById('edit-field-by-appointment-und').checked
+        //) {
+            //document.getElementById('edit-field-exception-und').checked = true;
+        //} else{
+            //document.getElementById('edit-field-exception-und').checked = false;
+        //}
     },
     daysInMonth : function(month,year) {
         return new Date(year, month, 0).getDate();

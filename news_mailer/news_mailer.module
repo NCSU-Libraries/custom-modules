@@ -1,0 +1,142 @@
+<?php
+/**
+* User Emailer Module
+* Erik Olson - 2/15/16
+*/
+
+// 1. check for new news nodes
+// 2. create new mailchimp campaign
+// 3. save new campaign and default campaign
+// 4. mail it out
+
+
+function news_mailer(){
+  drupal_flush_all_caches();
+
+  $tid = '259517';
+  $cid = 'bff432eda3';
+  $lid = '0b0c9f0873';
+  $c = mailchimp_campaign_load($cid, TRUE);
+
+  $nodes = _get_todays_nodes();
+  if($nodes){
+    $c->template['news_item']['value'] = $nodes['data'];
+    mailchimp_campaign_save_campaign($c->template, array(), NULL, $cid); //default news template
+
+    $options = array("title"=>$nodes['title'],"subject"=>$nodes['title'],"list_id"=>$lid,"from_email"=>"cjsamuels@ncsu.edu","from_name"=>"NCSU Libraries","template_id"=>$tid);
+    $new = mailchimp_campaign_save_campaign($c->template, $options); //new campaign
+    $new_c = mailchimp_campaign_load($new, TRUE);
+    // mailchimp_campaign_send_test_campaign($c, array('eolson@ncsu.edu'));
+    mailchimp_campaign_send_campaign($new_c);
+  } else{
+      echo 'no stories today ';
+      return false;
+  }
+
+}
+
+
+function _get_todays_nodes(){
+    //get last 5 news nodes
+    $query = new EntityFieldQuery();
+    $result = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'news')
+    ->propertyOrderBy('created', 'DESC')
+    ->range(0, 5)
+    ->execute();
+    $nodes = node_load_multiple(array_keys($result['node']));
+
+    $start = strtotime('midnight');
+    $title_ary = array();
+    $node_str = '';
+    //get nodes saved today
+    foreach($nodes as $n){
+        $created = $n->created;
+        $nid = $n->nid;
+        $title = $n->title;
+
+        //the previous 24 hours
+        if($created > $start && $created > $start+8600){
+          array_push($title_ary, $title);
+          $node_str .= '[mailchimp_campaign|entity_type=node|entity_id='.$nid.'|view_mode=teaser]';
+        }
+    }
+    // generate email title/subject line
+    if($node_str == ''){
+      return false;
+    } else{
+      $title_str = (count($title_ary) > 1) ? $title_ary[0] .' and more!' : $title_ary[0];
+      return array('title'=>$title_str, 'data'=>$node_str);
+    }
+
+}
+
+function news_mailer_campaign_access(MailChimpCampaign $campaign, $sent = TRUE) {
+  $access = FALSE;
+  // Only campaigns that haven't been sent can be changed.
+  if (news_access('administer mailchimp campaigns') &&
+    ($campaign->mc_data['status'] === 'sent') === $sent) {
+    $access = TRUE;
+  }
+  return $access;
+}
+
+
+function news_mailer_get_mailchimp_list($list_id){
+    $apikey = 'b2624e9e54c93b4e508303958f5ed4e6-us8';
+    $auth = base64_encode( 'user:'.$apikey );
+
+    $data = array(
+        'apikey'        => $apikey,
+        'status'        => 'subscribed'
+    );
+    $json_data = json_encode($data);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, 'https://us8.api.mailchimp.com/3.0/lists/'.$list_id.'/members/');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json',
+                                                'Authorization: Basic '.$auth));
+    curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-MCAPI/2.0');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    //curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    //curl_setopt($ch, CURLOPT_POSTFIELDS, $json_data);
+
+    $result = curl_exec($ch);
+    $result_json = json_decode($result);
+    $u_ary = array();
+    foreach($result_json->members as $r){
+        array_push($u_ary,$r->email_address);
+    }
+
+    return $u_ary;
+}
+
+/**
+ * Parses template content to remove wrapper elements from tree.
+ *
+ * @param array $content
+ *   The template content array.
+ *
+ * @return array
+ *   The template content array minus wrapper elements.
+ */
+function _news_mailer_parse_template_content($content) {
+
+  $template_content = array();
+  $content_keys = array_keys($content);
+  foreach ($content_keys as $content_key) {
+    if (strpos($content_key, '_wrapper') !== FALSE) {
+      // If this element is a wrapper, add the element contained
+      // within the wrapper to the template content.
+      $new_content_key = str_replace('_wrapper', '', $content_key);
+      $template_content[$new_content_key] = $content[$content_key][$new_content_key];
+    }
+    else {
+      // If this element is not a wrapper, add it to the template content.
+      $template_content[$content_key] = $content[$content_key];
+    }
+  }
+  return $template_content;
+}

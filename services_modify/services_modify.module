@@ -120,14 +120,54 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
 
 
 
-// *********
-  // ALTER EVENTS OUTPUT
-  // *********
-  if($args[0]['display_id'] == 'master_events_feed'){
-    foreach ($result as $key => $value) {
-      $value->building = $value->building{0}['value'];
+    // *********
+    // ALTER EVENTS OUTPUT
+    // *********
+    if($args[0]['display_id'] == 'master_events_feed'){
+        foreach ($result as $key => $value) {
+            $value->building = $value->building{0}['value'];
+        }
     }
-  }
+
+
+    // *********
+    // ALTER SPACES JSON OUTPUT
+    // *********
+    if($args[0]['display_id'] == 'roomres_data_feed'){
+        foreach ($result as $key => $value) {
+            $days_in_advance = $value->days_in_advance;
+            $reserve_x_hours = $value->reserve_up_to_x_hours;
+            $reservable_by = $value->reservable_by;
+            $grace_period = $value->min_grace_period;
+            $value->policies2 = '<ul>';
+
+            if($days_in_advance){
+                $value->policies2 .= '<li>Reservable up to ' . $days_in_advance . ' in advance.</li>';
+            }
+
+            if($reserve_x_hours){
+                $value->policies2 .= '<li>Reserve for up to '.$reserve_x_hours.'.</li>';
+            }
+
+            if($reservable_by){
+                $value->policies2 .= '<li>Reservable by: ';
+                $value->policies2 .= implode(', ',$reservable_by);
+                $value->policies2 .= '.</li>';
+            }
+
+            if($grace_period == 'yes'){
+                $value->policies2 .= '<li>After 15 minute grace period for arrival, space becomes available to others.</li>';
+            }
+
+            $value->policies2 .= '<li><a href="https://www.lib.ncsu.edu/spaces/general-room-use-guidelines">View room use guidelines</a>.</li>';
+            $value->policies2 .= '</ul>';
+
+            unset($value->days_in_advance);
+            unset($value->reserve_up_to_x_hours);
+            unset($value->reservable_by);
+            unset($value->min_grace_period);
+        }
+    }
 
 
 
@@ -153,7 +193,8 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
         foreach ($result as $key => $value) {
             $value->hours = $value->hours[0];
             $value->exception = $value->exception['value'];
-            if($value->exception == '0' && $value->exam_hours == '0'){
+            if(is_array($value->adverse_weather)){$value->adverse_weather = '0';} //set this field to '0' for legacy content. added this field 2 years after app created.
+            if($value->exception == '0' && $value->exam_hours == '0' && $value->adverse_weather == '0'){
               $value->type = 'regular';
             } else{
               $value->type = 'exception';
@@ -179,8 +220,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             $raw_close_tz = strtotime($value->hours['value2']) + ncsulib_foundation_adjust_for_timezone($value->hours['value2']);
             $open = date('g:ia',$raw_open_tz);
             $close = date('g:ia',$raw_close_tz);
-            $value->test = $value->hours['value2'];
-            $value->test2 = ncsulib_foundation_adjust_for_timezone(date('Y-m-d'));
+
             // build hours display string
             if($value->twenty_four_hours == 1){
                 $value->display = '24 hours';
@@ -221,10 +261,11 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             // is it open right now?
             $time_open_today = date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y')));
             $time_open_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_open_tz), date('i',$raw_open_tz), 0, date('n'), date('j'), date('Y'))));
-            $day_close = (date('g', $raw_close_tz) < 4 || (date('g', $raw_close_tz) == 12 && $value->midnight == 1)) ? date('j')+1 : date('j'); //if close is 4am or less
+            $day_close = (date('G', $raw_close_tz) < 4 || (date('g', $raw_close_tz) == 12 && $value->midnight == 1)) ? date('j')+1 : date('j'); //if close is 4am or less
             $time_close_today = date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y')));
             $time_close_today_U = strtotime(date("M d g:ia", mktime(date('G',$raw_close_tz), date('i',$raw_close_tz), 0, date('n'), $day_close, date('Y'))));
-            // $value->time_range = $time_open_today . ' - ' . $time_close_today;
+            $value->day_close = $day_close;
+
 
             if($value->closed == 1){
                 $value->is_open = 0;
@@ -232,8 +273,10 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
                 $value->is_open = 1;
             } else if($value->midnight == 0 && $close == '12:00am'){ //overnight
                 $value->is_open = 1;
-            } else if($time_open_today_U < date('U') && $time_close_today_U > date('U')){
+            } else if($raw_open_tz < date('U') && $raw_close_tz > date('U')){
                 $value->is_open = 1;
+            } else if($value->appointment_only == 1){
+                $value->is_open = 0;
             } else{
                 $value->is_open = 0;
             }
@@ -282,7 +325,7 @@ function services_modify_services_request_postprocess_alter($controller, $args, 
             // repeat rule
             $rule = preg_split('/;/si',$value->hours['rrule']);
             $all_days = preg_split('/=/si',$rule[2]);
-            if($value->exception == 1 || $value->exam_hours == 1){ //if exception get closing date
+            if($value->exception == 1 || $value->exam_hours == 1 || $value->adverse_weather == 1){ //if exception get closing date
                 $end_date = preg_split('/,/si',$all_days[1]);
                 $end_day = preg_split('/T/si',$end_date[0]);
                 $end_time = preg_split('/T/si',$end_day[1]);
